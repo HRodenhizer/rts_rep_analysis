@@ -1,3 +1,6 @@
+# input data (many files are too big)
+input_data/
+
 # History files
 .Rhistory
 .Rapp.history
