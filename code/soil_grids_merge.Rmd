@@ -37,7 +37,7 @@ load_soilgrids = function(files, pattern) {
   
   names(raster) = str_to_lower(
     str_split(
-      str_split(subset, 'SoilGrids')[[1]][2], 
+      str_split(subset, 'SoilGrids')[[1]][length(str_split(subset, 'SoilGrids')[[1]])], 
       '4326'
     )[[1]][1]
   )
@@ -58,7 +58,7 @@ soilgrids = soilgrids |>
 ```
 
 ```{r}
-writeRaster(soilgrids,
-            './soilgrids.tif')
+# writeRaster(soilgrids,
+#             './input_data/SoilGridsV2/SoilGridsV2Compiled.tif')
 ```
 
