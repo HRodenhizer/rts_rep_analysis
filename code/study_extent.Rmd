@@ -1,0 +1,45 @@
+---
+title: "Study Extent"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load Libraries
+```{r}
+library(sf)
+```
+
+```{r}
+tk_landscapes = st_read('./input_data/OlefeldtThermokarstMap/data/Circumpolar_Thermokarst_Landscapes.shp')
+```
+
+```{r}
+ggplot(tk_landscapes) +
+  geom_sf(aes(fill = TKHP),
+          color = NA)
+```
+
+```{r}
+tk_union = tk_landscapes |>
+  st_make_valid() |>
+  st_buffer(dist = 500) |>
+  st_union() |>
+  st_sf()
+```
+
+```{r}
+tk_no_holes = tk_union |>
+  sfheaders::sf_remove_holes()
+```
+
+```{r}
+ggplot(tk_no_holes) +
+  geom_sf(fill = 'transparent')
+```
+
+```{r}
+st_write(tk_union,
+         './input_data/OlefeldtThermokarstMap/study_extent_buff500.shp')
+```
+
