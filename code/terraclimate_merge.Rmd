@@ -40,8 +40,8 @@ load_terraclimate = function(files, pattern) {
 
 ```{r}
 terraclimate = subsets |>
-  map(~ load_terraclimate(files, .x))# |>
-  # rast()
+  map(~ load_terraclimate(files, .x)) |>
+  rast()
 ```
 
 ```{r}
@@ -91,7 +91,7 @@ terraclimate = terraclimate |>
 
 ```{r}
 # writeRaster(terraclimate,
-#             './TerraClimateCompiled.tif')
+#             './input_data/TerraClimate/TerraClimateCompiled.tif')
 ```
 
 
