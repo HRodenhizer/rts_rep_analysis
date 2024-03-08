@@ -16,6 +16,7 @@ library(tidyverse)
 ```{r}
 tk_landscapes = st_read('./input_data/OlefeldtThermokarstMap/data/Circumpolar_Thermokarst_Landscapes.shp')
 ```
+
 # Correct Invalid Geometries
 
 ```{r}
