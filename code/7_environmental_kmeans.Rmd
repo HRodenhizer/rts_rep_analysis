@@ -11,7 +11,6 @@ output: html_document
 library(terra)
 library(tidyterra)
 library(sf)
-library(viridis)
 library(tidyverse)
 ```
 
@@ -22,51 +21,51 @@ theme_set(theme_bw())
 # Load Input Data
 
 ```{r}
-rts_rep_rescale = rast('./input_data/rts_rep_input_data_rescale_3413.tif')
+rts_rep_rescale = rast('./input_data/rts_rep_input_data_rescale_3413.tif') # |>
+  # aggregate(fact = 5, fun = mean, na.rm = FALSE, cores = 18)
 ```
 
-```{r}
-# Careful! This required about 52 Gb of memory during the conversion.
-rts_rep_rescale_df = rts_rep_rescale |>
-  as.data.frame(xy = TRUE, cell = TRUE, na.rm = TRUE)
-
-# Make sure to "Free unused R memory" after running
-gc()
-```
 
 # K-Means Clustering
 
 ```{r}
-set.seed(123)
-km20 = kmeans(
-  rts_rep_rescale_df |>
-    select(-c('cell', 'x', 'y')),
-  20,
-  iter.max = 500,
-  nstart = 10,
-  algorithm = 'Lloyd'
-)
-```
-
-```{r}
-# saveRDS(km20,
-#         './kmeans/kmeans.Rdata')
-km20 = readRDS('./kmeans/kmeans.Rdata')
-```
-
-```{r}
-km20_rast = rts_rep_rescale[[1]]
-
-km20_rast[rts_rep_rescale_df$cell] = km20$cluster
-names(km20_rast) = c('kmeans')
-# writeRaster(km20_rast,
-#             './kmeans/km20.tiff')
+n_centers = 10
+km = k_means(rts_rep_rescale, centers = n_centers)
+levels(km) = tibble(id = seq(1, n_centers),
+                           kmeans = seq(1, n_centers))
 ```
 
 ```{r}
 ggplot() +
-  geom_spatraster(data = km20_rast) +
-  scale_fill_viridis(na.value = 'transparent')
+  geom_spatraster(data = km) +
+  scale_fill_manual(
+    name = 'Kmeans\nCluster',
+    values = c(
+      '#CC0000',
+      '#009999',
+      '#FFCC33',
+      '#660099',
+      '#006600',
+      '#FF6600',
+      '#990066',
+      '#6666FF',
+      '#66CC66',
+      '#FF99CC',
+      '#3399FF',
+      '#FF9900',
+      '#000066',
+      '#00CC99',
+      '#FF3399',
+      '#99CC00',
+      '#336666',
+      '#FF3333',
+      '#3300CC',
+      '#CC6600'
+    ),
+    na.value = 'transparent',
+    na.translate = FALSE
+  ) +
+  coord_sf(expand = FALSE)
 
 # ggsave('./figures/kmeans.jpg',
 #        height = 6.5,
@@ -75,4 +74,10 @@ ggplot() +
 #        height = 6.5,
 #        width = 6.5)
 ```
+
+```{r}
+# writeRaster(km,
+#             './kmeans/kmeans_10.tif')
+```
+
 
