@@ -1,5 +1,8 @@
 # input data (many files are too big)
 input_data/
+figures/
+kmeans/
+pca/
 
 # History files
 .Rhistory
