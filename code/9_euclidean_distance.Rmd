@@ -1,0 +1,31 @@
+---
+title: "Euclidean Distance"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load Libraries
+
+```{r}
+library(terra)
+library(tidyterra)
+library(sf)
+library(tidyverse)
+```
+
+
+# Load Data
+
+```{r}
+km = rast('./kmeans/kmeans_10.tiff')
+levels(km) = tibble(id = seq(1, 20),
+                    kmeans = seq(1, 20))
+
+pca = rast('./pca/pca.tiff') |>
+  subset(c('PC1', 'PC2', 'PC3'))
+
+arts_pc = st_read('./pca/arts_pc.geojson') |>
+  select(-matches('PC[456789]{1}[:digit:]?'))
+```
+
