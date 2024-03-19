@@ -187,9 +187,6 @@ gc()
 ```{r}
 rts_rep_pca = rts_rep_rescale_df |>
   cbind.data.frame (pca[['x']])
-
-# write_csv(rts_rep_pca,
-#           './pca/principal_components.csv')
 ```
 
 ```{r}
@@ -199,7 +196,7 @@ pca_rast[rts_rep_pca$cell] = rts_rep_pca[, seq(ncol(rts_rep_pca) - 29, ncol(rts_
 names(pca_rast) = colnames(rts_rep_pca)[seq(ncol(rts_rep_pca) - 29, ncol(rts_rep_pca))]
 
 # writeRaster(pca_rast,
-#             './pca/pca.tiff',
+#             './pca/pca.tif',
 #             overwrite = TRUE)
 ```
 
