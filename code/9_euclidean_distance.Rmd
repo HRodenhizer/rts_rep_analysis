@@ -18,14 +18,41 @@ library(tidyverse)
 # Load Data
 
 ```{r}
-km = rast('./kmeans/kmeans_10.tiff')
+km = rast('./kmeans/kmeans_10.tif')
 levels(km) = tibble(id = seq(1, 20),
                     kmeans = seq(1, 20))
 
-pca = rast('./pca/pca.tiff') |>
-  subset(c('PC1', 'PC2', 'PC3'))
+pca = rast('./pca/pca.tif') |>
+  subset(c('PC1', 'PC2', 'PC3')) |>
+  as.data.frame(cell = TRUE, xy = TRUE)
 
 arts_pc = st_read('./pca/arts_pc.geojson') |>
-  select(-matches('PC[456789]{1}[:digit:]?'))
+  select(-matches('PC([456789]{1}|\\d{2})')) # only keep PC1-PC3
+```
+
+`outer()` could get me euclidean distances for all rows in arts_pc against all rows in pca, but it will probably eat up all of my RAM (https://stackoverflow.com/questions/64269505/euclidean-distances-between-rows-of-two-data-frames-in-r).
+
+If I write my own nested for loop and count the number of polygons within x distance of each pixel, it will only have to keep one number for each pixel, rather than 2114 numbers. It won't be faster, but it probably won't crash R due to lack of RAM.
+
+`philentropy::euclidean()` is faster than `dist()` or `distance()` (https://cran.r-project.org/web/packages/philentropy/vignettes/Distances.html).
+
+If I start by calculating the distance from a random sample of pixels to each polygon, I should get a good estimate of the histogram of distances, which I can use to set a cut-off for polygons that are 'close enough'.
+
+```{r}
+test = dist(
+  rbind(
+    pca |>
+      slice(1) |>
+      select(PC1:PC3) |>
+      as.numeric(),
+    arts_pc |>
+      st_drop_geometry() |>
+      slice(1) |>
+      select(PC1:PC3) |>
+      as.numeric()
+  )
+)
+
+
 ```
 
