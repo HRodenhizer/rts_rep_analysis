@@ -8,10 +8,17 @@ output: html_document
 # Load Libraries
 
 ```{r}
+library(rnaturalearth)
+library(svMisc)
 library(terra)
 library(tidyterra)
 library(sf)
+library(viridis)
 library(tidyverse)
+```
+
+```{r}
+theme_set(theme_bw())
 ```
 
 
@@ -23,36 +30,252 @@ levels(km) = tibble(id = seq(1, 20),
                     kmeans = seq(1, 20))
 
 pca = rast('./pca/pca.tif') |>
-  subset(c('PC1', 'PC2', 'PC3')) |>
-  as.data.frame(cell = TRUE, xy = TRUE)
+  subset(c('PC1', 'PC2', 'PC3'))
+
+pca_df = pca |>
+  as.data.frame(cell = TRUE, xy = TRUE, na.rm = TRUE)
 
 arts_pc = st_read('./pca/arts_pc.geojson') |>
+  st_drop_geometry() |>
   select(-matches('PC([456789]{1}|\\d{2})')) # only keep PC1-PC3
+
+world <- ne_countries(scale = "large", returnclass = "sf")
 ```
 
-`outer()` could get me euclidean distances for all rows in arts_pc against all rows in pca, but it will probably eat up all of my RAM (https://stackoverflow.com/questions/64269505/euclidean-distances-between-rows-of-two-data-frames-in-r).
 
-If I write my own nested for loop and count the number of polygons within x distance of each pixel, it will only have to keep one number for each pixel, rather than 2114 numbers. It won't be faster, but it probably won't crash R due to lack of RAM.
+# Euclidean Distance
+
+## Estimate Histogram
+
+`outer()` could get me euclidean distances for all rows in arts_pc against all rows in pca_df, but it will probably eat up all of my RAM (https://stackoverflow.com/questions/64269505/euclidean-distances-between-rows-of-two-data-frames-in-r).
+
+If I write my own nested for loop and count the number of polygons within x distance of each pixel, it will only have to keep one number for each pixel (or a few depending if I decide to try a few cut-offs), rather than 2114 numbers. It won't be faster, but it probably won't crash R due to lack of RAM.
 
 `philentropy::euclidean()` is faster than `dist()` or `distance()` (https://cran.r-project.org/web/packages/philentropy/vignettes/Distances.html).
 
 If I start by calculating the distance from a random sample of pixels to each polygon, I should get a good estimate of the histogram of distances, which I can use to set a cut-off for polygons that are 'close enough'.
 
 ```{r}
-test = dist(
-  rbind(
-    pca |>
-      slice(1) |>
-      select(PC1:PC3) |>
-      as.numeric(),
-    arts_pc |>
-      st_drop_geometry() |>
-      slice(1) |>
-      select(PC1:PC3) |>
-      as.numeric()
+# converting to list prior to for loop speeds up computation
+# ENORMOUSLY, matrices are about twice as slow as lists, and my original tibble version was at least an order of magnitude slower
+arts_pc_l = arts_pc |>
+  select(PC1:PC3) |>
+  drop_na() |>
+  as.matrix() |>
+  t() |>
+  as_tibble() |>
+  as.list()
+```
+
+```{r}
+# converting to list prior to for loop speeds up computation
+# ENORMOUSLY
+sample_size = 10000
+
+pixel_sample = pca_df |>
+  slice(sample(nrow(pca_df), size = sample_size)) |>
+  select(PC1:PC3) |>
+  as.matrix() |>
+  t() |>
+  as_tibble() |>
+  as.list()
+```
+
+```{r}
+time1 = Sys.time()
+
+euc_dist = matrix(
+  nrow = length(pixel_sample), 
+  ncol = length(arts_pc_l)
   )
+
+for (pixel_idx in 1:length(pixel_sample)) {
+  
+  pixel_pca_df = pixel_sample[[pixel_idx]]
+  
+  for (poly_idx in 1:length(arts_pc_l)) {
+    
+    euc_dist[pixel_idx, poly_idx] = philentropy:: euclidean(
+      pixel_pca_df,
+      arts_pc_l[[poly_idx]],
+      testNA = FALSE
+    )
+    
+  }
+  
+  progress(pixel_idx, sample_size, progress.bar = TRUE)
+  
+}
+
+time2 = Sys.time()
+
+print(time2 - time1)
+```
+
+At ~35 seconds for 21130000 euclidean distance calculations, it would take about 13.5 hours to calculate the euclidean distance for all of the pixels against all of the 2114 polygons. Not unreasonable for this number of polygons, but as the number of polygons increases, it could get unmanageable.
+
+If I were create a matrix with all of the distances as "double", it would require about 234 Gb  of RAM.
+Converting to integer will reduce storage space by ~1/2, or 117 Gb, which is still far too large to keep in memory.
+
+```{r}
+# scale storage space of current 21130000 calculations to all desired calculations, in Gb
+object.size(euc_dist)*13811014*2113/21130000/1000000000
+test = round(euc_dist)
+storage.mode(test) = 'integer'
+object.size(test)*13811014*2113/21130000/1000000000
+```
+
+```{r}
+euc_dist_df = as_tibble(euc_dist) |>
+  mutate(cell = seq(1, nrow(euc_dist)),
+         .before = 'V1') |>
+  pivot_longer(V1:V2113, names_to = 'poly_id', values_to = 'euc_dist')
+```
+
+```{r}
+ggplot(euc_dist_df, aes(x = euc_dist)) +
+  geom_density()
+```
+
+## Polygon Count Within X Distance
+
+```{r}
+# converting to list prior to for loop speeds up computation
+# ENORMOUSLY
+arts_pc_l = arts_pc |>
+  select(PC1:PC3) |>
+  drop_na() |>
+  as.matrix() |>
+  t() |>
+  as_tibble() |>
+  as.list()
+```
+
+```{r}
+# converting to list prior to for loop speeds up computation
+# ENORMOUSLY
+# As odd as it may seem, it is faster to convert to matrix, transpose, convert back to tibble and then convert to list (because a tibble's columns are already lists) than to group_split() the dataframe
+# sample_size = 10000
+
+pca_l = pca_df |>
+  # slice(sample(nrow(pca_df), size = sample_size)) |>
+  select(PC1:PC3) |>
+  as.matrix() |>
+  t() |>
+  as_tibble() |>
+  as.list()
+```
+
+Try cut-offs of 5, 2, and 1.
+
+1 - Calculate euclidean distance to each polygon from each pixel.
+2 - Calculate number of polygons closer than 5, 2, and 1 unit distance.
+3 - Save three values as bands in a raster.
+
+This requires ~32 seconds for a subset of 10000 pixels, or about 12.3 hours for the whole dataset with the current number of polygons.
+
+```{r}
+n_polys = length(arts_pc_l)
+n_pixels = length(pca_l)
+
+time1 = Sys.time()
+
+counts = matrix(
+  nrow = n_pixels,
+  ncol = 3
 )
 
+for (pixel_idx in 1:n_pixels) {
+  
+  euc_dist = vector(mode = 'double', length = n_polys)
+  
+  for (poly_idx in 1:n_polys) {
+    
+    euc_dist[poly_idx] = philentropy:: euclidean(
+      pca_l[[pixel_idx]],
+      arts_pc_l[[poly_idx]],
+      testNA = FALSE
+    )
+    
+  }
+  
+  current_counts = c(
+      length(euc_dist[euc_dist <= 1]),
+      length(euc_dist[euc_dist <= 2]),
+      length(euc_dist[euc_dist <= 5])
+    )
+  
+  counts[pixel_idx,] = current_counts
+  
+}
 
+time2 = Sys.time()
+
+print(time2 - time1)
+```
+
+## Test with one polygon and all pixels
+Went from 2.16 minutes to 25 seconds when progress bar was removed...
+
+Why isn't this changing when I switch out the polygon?
+
+```{r}
+n_polys = length(arts_pc_l)
+n_pixels = length(pca_l)
+
+time1 = Sys.time()
+
+euc_dist = vector(mode = 'double', length = n_polys)
+  
+for (pixel_idx in 1:n_pixels) {
+  
+  euc_dist[pixel_idx] = philentropy::euclidean(
+      pca_l[[pixel_idx]],
+      arts_pc_l[[628]],
+      testNA = FALSE
+    )
+  
+}
+
+time2 = Sys.time()
+
+print(time2 - time1)
+```
+
+```{r}
+euc_dist_rast = pca
+values(euc_dist_rast)[pca_df$cell] = euc_dist
+```
+
+```{r}
+arts_pc_plot = st_read('./pca/arts_pc.geojson') |>
+  drop_na()
+```
+
+```{r}
+ggplot() +
+  geom_spatraster(data = euc_dist_rast) +
+  scale_fill_viridis(name = 'Euclidean\nDistance',
+                     na.value = 'transparent',
+                     limits = c(0, 1),
+                     oob = scales::squish) +
+  geom_sf(data = arts_pc_plot |>
+            slice(628),
+          aes(geometry = geometry),
+          color = 'red',
+          linewidth = 3) +
+  geom_sf(data = world |>
+            st_transform(3413) |>
+            st_crop(ext(euc_dist_rast)), 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'transparent') +
+  coord_sf(expand = FALSE) +
+  theme(legend.position = 'inside',
+        legend.position.inside = c(0.99, 0.01),
+        legend.justification = c(1, 0))
+
+# ggsave('./figures/euc_dist_poly_628.jpg',
+#        height = 6, width = 6.5)
 ```
 
