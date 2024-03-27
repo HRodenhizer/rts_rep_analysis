@@ -13,6 +13,8 @@ library(svMisc)
 library(terra)
 library(tidyterra)
 library(sf)
+library(foreach)
+library(doParallel)
 library(viridis)
 library(tidyverse)
 ```
@@ -40,6 +42,9 @@ arts_pc = st_read('./pca/arts_pc.geojson') |>
   select(-matches('PC([456789]{1}|\\d{2})')) # only keep PC1-PC3
 
 world <- ne_countries(scale = "large", returnclass = "sf")
+
+arts_pc_plot = st_read('./pca/arts_pc.geojson') |>
+  filter(!(is.na(PC1) | is.na(PC2) | is.na(PC3)))
 ```
 
 
@@ -130,6 +135,9 @@ euc_dist_df = as_tibble(euc_dist) |>
   mutate(cell = seq(1, nrow(euc_dist)),
          .before = 'V1') |>
   pivot_longer(V1:V2113, names_to = 'poly_id', values_to = 'euc_dist')
+
+euc_dist_df |>
+  summarise(sd = sd(euc_dist))
 ```
 
 ```{r}
@@ -166,13 +174,17 @@ pca_l = pca_df |>
   as.list()
 ```
 
-Try cut-offs of 5, 2, and 1.
+Try cut-offs of 3, 2, and 1.
+
+5 is definitely too large a radius. 2 seems pretty close, and is about the standard deviation of euclidean distances between each pixel and all of the RTS polygons.
 
 1 - Calculate euclidean distance to each polygon from each pixel.
 2 - Calculate number of polygons closer than 5, 2, and 1 unit distance.
 3 - Save three values as bands in a raster.
 
 This requires ~32 seconds for a subset of 10000 pixels, or about 12.3 hours for the whole dataset with the current number of polygons.
+
+Running on 18 cores in parallel, this takes about 9.4 seconds for 10000 pixels, or about 3.6 hours.
 
 ```{r}
 n_polys = length(arts_pc_l)
@@ -185,7 +197,10 @@ counts = matrix(
   ncol = 3
 )
 
-for (pixel_idx in 1:n_pixels) {
+cl = makeCluster(18) # I have 20 cores, this leaves me with 2 to do other stuff
+registerDoParallel(cl)
+
+counts = foreach (pixel_idx = 1:n_pixels) %dopar% {
   
   euc_dist = vector(mode = 'double', length = n_polys)
   
@@ -199,25 +214,82 @@ for (pixel_idx in 1:n_pixels) {
     
   }
   
-  current_counts = c(
+  c(
       length(euc_dist[euc_dist <= 1]),
       length(euc_dist[euc_dist <= 2]),
-      length(euc_dist[euc_dist <= 5])
+      length(euc_dist[euc_dist <= 3])
     )
-  
-  counts[pixel_idx,] = current_counts
   
 }
 
 time2 = Sys.time()
 
 print(time2 - time1)
+
+stopCluster(cl)
+
+counts = matrix(
+  unlist(counts), 
+  byrow = TRUE, 
+  nrow = length(counts)
+  )
 ```
 
-## Test with one polygon and all pixels
-Went from 2.16 minutes to 25 seconds when progress bar was removed...
+```{r}
+euc_dist_rast = pca
+values(euc_dist_rast[[1]])[pca_df$cell] = counts[,1]
+values(euc_dist_rast[[2]])[pca_df$cell] = counts[,2]
+values(euc_dist_rast[[3]])[pca_df$cell] = counts[,3]
 
-Why isn't this changing when I switch out the polygon?
+names(euc_dist_rast) = c('dist_1', 'dist_2', 'dist_3')
+
+writeRaster(euc_dist_rast, './euclidean_distance/polygon_counts_1_2_3.tif')
+```
+
+```{r}
+ggplot() +
+  geom_spatraster(data = euc_dist_rast) +
+  scale_fill_viridis(name = 'Polygon Count',
+                     na.value = 'transparent',
+                     # limits = c(0, 100),
+                     oob = scales::squish) +
+  geom_sf(data = world |>
+            st_transform(3413) |>
+            st_crop(ext(euc_dist_rast)), 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'transparent') +
+  facet_wrap(~lyr, ncol = 2) +
+  coord_sf(expand = FALSE) +
+  theme(legend.position = 'inside',
+        legend.position.inside = c(0.75, 0.25),
+        legend.justification = c(0.5, 0.5))
+
+# ggsave('./figures/euc_dist_poly_counts.jpg',
+#        height = 6.5, width = 6.5)
+# ggsave('./figures/euc_dist_poly_counts.pdf',
+#        height = 6.5, width = 6.5)
+```
+
+
+## Distance to Individual Polygons
+
+```{r}
+# converting to list prior to for loop speeds up computation
+# ENORMOUSLY
+# As odd as it may seem, it is faster to convert to matrix, transpose, convert back to tibble and then convert to list (because a tibble's columns are already lists) than to group_split() the dataframe
+# sample_size = 10000
+
+pca_l = pca_df |>
+  # slice(sample(nrow(pca_df), size = sample_size)) |>
+  select(PC1:PC3) |>
+  as.matrix() |>
+  t() |>
+  as_tibble() |>
+  as.list()
+```
+
+Went from 2.16 minutes to 25 seconds when progress bar was removed...
 
 ```{r}
 n_polys = length(arts_pc_l)
@@ -231,7 +303,7 @@ for (pixel_idx in 1:n_pixels) {
   
   euc_dist[pixel_idx] = philentropy::euclidean(
       pca_l[[pixel_idx]],
-      arts_pc_l[[628]],
+      arts_pc_l[[1]],
       testNA = FALSE
     )
   
@@ -243,13 +315,8 @@ print(time2 - time1)
 ```
 
 ```{r}
-euc_dist_rast = pca
+euc_dist_rast = pca |> subset(1)
 values(euc_dist_rast)[pca_df$cell] = euc_dist
-```
-
-```{r}
-arts_pc_plot = st_read('./pca/arts_pc.geojson') |>
-  drop_na()
 ```
 
 ```{r}
@@ -257,10 +324,10 @@ ggplot() +
   geom_spatraster(data = euc_dist_rast) +
   scale_fill_viridis(name = 'Euclidean\nDistance',
                      na.value = 'transparent',
-                     limits = c(0, 1),
+                     limits = c(0, 8),
                      oob = scales::squish) +
   geom_sf(data = arts_pc_plot |>
-            slice(628),
+            slice(1),
           aes(geometry = geometry),
           color = 'red',
           linewidth = 3) +
@@ -275,7 +342,5 @@ ggplot() +
         legend.position.inside = c(0.99, 0.01),
         legend.justification = c(1, 0))
 
-# ggsave('./figures/euc_dist_poly_628.jpg',
-#        height = 6, width = 6.5)
-```
-
+# ggsave('./figures/euc_dist_poly_1.jpg',
+#        height = 6, width = 6.

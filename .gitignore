@@ -3,6 +3,7 @@ input_data/
 figures/
 kmeans/
 pca/
+euclidean_distance/
 
 # History files
 .Rhistory
