@@ -217,7 +217,8 @@ counts = foreach (pixel_idx = 1:n_pixels) %dopar% {
   c(
       length(euc_dist[euc_dist <= 1]),
       length(euc_dist[euc_dist <= 2]),
-      length(euc_dist[euc_dist <= 3])
+      length(euc_dist[euc_dist <= 3]),
+      mean(euc_dist)
     )
   
 }
@@ -237,11 +238,13 @@ counts = matrix(
 
 ```{r}
 euc_dist_rast = pca
+add(euc_dist_rast) = pca[[1]]
 values(euc_dist_rast[[1]])[pca_df$cell] = counts[,1]
 values(euc_dist_rast[[2]])[pca_df$cell] = counts[,2]
 values(euc_dist_rast[[3]])[pca_df$cell] = counts[,3]
+values(euc_dist_rast[[4]])[pca_df$cell] = counts[,4]
 
-names(euc_dist_rast) = c('dist_1', 'dist_2', 'dist_3')
+names(euc_dist_rast) = c('dist_1_count', 'dist_2_count', 'dist_3_count', 'mean_dist')
 
 writeRaster(euc_dist_rast, './euclidean_distance/polygon_counts_1_2_3.tif')
 ```
@@ -260,10 +263,10 @@ ggplot() +
           inherit.aes = FALSE,
           fill = 'transparent') +
   facet_wrap(~lyr, ncol = 2) +
-  coord_sf(expand = FALSE) +
-  theme(legend.position = 'inside',
-        legend.position.inside = c(0.75, 0.25),
-        legend.justification = c(0.5, 0.5))
+  coord_sf(expand = FALSE) #+
+  # theme(legend.position = 'inside',
+  #       legend.position.inside = c(0.75, 0.25),
+  #       legend.justification = c(0.5, 0.5))
 
 # ggsave('./figures/euc_dist_poly_counts.jpg',
 #        height = 6.5, width = 6.5)
