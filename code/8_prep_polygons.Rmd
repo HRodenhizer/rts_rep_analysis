@@ -21,7 +21,23 @@ library(tidyverse)
 # Load Data
 
 ```{r}
-arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.5-alpha/ARTS_main_dataset.geojson')
+arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.17-alpha/ARTS_main_dataset.geojson') |>
+  distinct() |>
+  st_make_valid()
+
+# # the geometries aren't equal, but I can't see a difference in any of them...
+# duplicates = arts |>
+#   filter(UID == '62aaafe8-f268-5a20-8e3c-8d28afbb9807')
+# st_equals(duplicates[1,], duplicates[2,])
+# duplicates[[20]][[1]][[1]] == duplicates[[20]][[2]][[1]]
+# duplicates[[20]][[1]][[1]]
+# duplicates[[20]][[2]][[1]]
+
+# # temporary work around for duplicated row
+arts = arts |> 
+  mutate(count = n(), .by = CentroidLat:Notes) |>
+  filter(count == 1 & TrainClass == 'Positive') |>
+  select(-count)
 ```
 
 ```{r}
@@ -32,19 +48,37 @@ pca = rast('./pca/pca.tif')
 # Calculate Principal Components by Polygon
 
 ```{r}
-pc_values = zonal(
+pc_values_poly = terra::extract(
   pca, 
-  vect(arts),
+  vect(arts |>
+         filter(st_geometry_type(geometry) %in% c('POLYGON', 'MULTIPOLYGON'))),
+  cells = TRUE,
+  ID = FALSE,
   fun = 'mean',
   na.rm = TRUE
-  )
+  ) |>
+  mutate(order = which(st_geometry_type(arts$geometry) %in% c('POLYGON', 'MULTIPOLYGON')))
 
-pc_buffer_values = zonal(
+pc_values_point = terra::extract(
+  pca, 
+  vect(arts |>
+         filter(st_geometry_type(geometry) == 'POINT')),
+  ID = FALSE
+  ) |>
+  mutate(order = which(st_geometry_type(arts$geometry) == 'POINT'))
+
+pc_values = pc_values_poly |>
+  rbind(pc_values_point) |>
+  arrange(order) |>
+  select(-order)
+
+pc_buffer_values = terra::extract(
   pca, 
   vect(
     arts |>
-      st_buffer(1000)
+      st_buffer(5000)
          ),
+  ID = FALSE,
   fun = 'mean',
   na.rm = TRUE,
   touches = TRUE
@@ -65,6 +99,7 @@ arts_pc = arts |>
          variable = str_extract(name, 'PC\\d+')) |>
   select(-name) |>
   pivot_wider(
+    id_cols = c(CentroidLat:Notes, variable),
     names_from = 'type',
     values_from = 'value'
   ) |>
@@ -73,9 +108,8 @@ arts_pc = arts |>
   select(-buffer) |>
   pivot_wider(names_from = 'variable',
               values_from = 'normal') |>
-  full_join(arts |>
-              select(CentroidLat, CentroidLon),
-            by = c('CentroidLat', 'CentroidLon')) |>
+  full_join(arts,
+            by = colnames(arts)[-length(colnames(arts))]) |>
   st_as_sf()
 
 arts_pc |>

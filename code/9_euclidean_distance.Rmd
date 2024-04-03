@@ -184,7 +184,9 @@ Try cut-offs of 3, 2, and 1.
 
 This requires ~32 seconds for a subset of 10000 pixels, or about 12.3 hours for the whole dataset with the current number of polygons.
 
-Running on 18 cores in parallel, this takes about 9.4 seconds for 10000 pixels, or about 3.6 hours.
+Running on 18 cores in parallel, this takes about 9.4 seconds for 10000 pixels, or about 3.6 hours for all pixels over ~2100 polygons.
+
+With a dataset of ~14500 polygons, this should take about 25 hours.
 
 ```{r}
 n_polys = length(arts_pc_l)
@@ -246,7 +248,7 @@ values(euc_dist_rast[[4]])[pca_df$cell] = counts[,4]
 
 names(euc_dist_rast) = c('dist_1_count', 'dist_2_count', 'dist_3_count', 'mean_dist')
 
-writeRaster(euc_dist_rast, './euclidean_distance/polygon_counts_1_2_3.tif')
+writeRaster(euc_dist_rast, './euclidean_distance/polygon_counts_1_2_3_v17.tif')
 ```
 
 ```{r}
