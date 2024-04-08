@@ -186,7 +186,7 @@ This requires ~32 seconds for a subset of 10000 pixels, or about 12.3 hours for 
 
 Running on 18 cores in parallel, this takes about 9.4 seconds for 10000 pixels, or about 3.6 hours for all pixels over ~2100 polygons.
 
-With a dataset of ~14500 polygons, this should take about 25 hours.
+With a dataset of ~14500 polygons, this should take about 25 hours. It took 1.18 days with version 17.
 
 ```{r}
 n_polys = length(arts_pc_l)
@@ -253,10 +253,35 @@ writeRaster(euc_dist_rast, './euclidean_distance/polygon_counts_1_2_3_v17.tif')
 
 ```{r}
 ggplot() +
-  geom_spatraster(data = euc_dist_rast) +
+  geom_spatraster(data = euc_dist_rast |>
+                    subset(1:3)) +
   scale_fill_viridis(name = 'Polygon Count',
                      na.value = 'transparent',
                      # limits = c(0, 100),
+                     oob = scales::squish) +
+  geom_sf(data = world |>
+            st_transform(3413) |>
+            st_crop(ext(euc_dist_rast)), 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'transparent') +
+  facet_wrap(~lyr, ncol = 2) +
+  coord_sf(expand = FALSE) +
+  theme(legend.position = 'inside',
+        legend.position.inside = c(0.75, 0.25),
+        legend.justification = c(0.5, 0.5))
+
+# ggsave('./figures/euc_dist_poly_counts.jpg',
+#        height = 6.5, width = 6.5)
+# ggsave('./figures/euc_dist_poly_counts.pdf',
+#        height = 6.5, width = 6.5)
+
+ggplot() +
+  geom_spatraster(data = euc_dist_rast |>
+                    subset(2)) +
+  scale_fill_viridis(name = 'Polygon Count\n(Dist = 2)',
+                     na.value = 'transparent',
+                     # limits = c(0, 15),
                      oob = scales::squish) +
   geom_sf(data = world |>
             st_transform(3413) |>
@@ -270,9 +295,33 @@ ggplot() +
   #       legend.position.inside = c(0.75, 0.25),
   #       legend.justification = c(0.5, 0.5))
 
-# ggsave('./figures/euc_dist_poly_counts.jpg',
+# ggsave('./figures/euc_dist_poly_counts_2.jpg',
 #        height = 6.5, width = 6.5)
-# ggsave('./figures/euc_dist_poly_counts.pdf',
+# ggsave('./figures/euc_dist_poly_counts_2.pdf',
+#        height = 6.5, width = 6.5)
+
+ggplot() +
+  geom_spatraster(data = euc_dist_rast |>
+                    subset(4)) +
+  scale_fill_viridis(name = 'Mean\nEuclidean\nDistance',
+                     na.value = 'transparent',
+                     limits = c(0, 15),
+                     oob = scales::squish) +
+  geom_sf(data = world |>
+            st_transform(3413) |>
+            st_crop(ext(euc_dist_rast)), 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'transparent') +
+  facet_wrap(~lyr, ncol = 2) +
+  coord_sf(expand = FALSE) #+
+  # theme(legend.position = 'inside',
+  #       legend.position.inside = c(0.75, 0.25),
+  #       legend.justification = c(0.5, 0.5))
+
+# ggsave('./figures/mean_euc_dist.jpg',
+#        height = 6.5, width = 6.5)
+# ggsave('./figures/mean_euc_dist.pdf',
 #        height = 6.5, width = 6.5)
 ```
 
