@@ -1,0 +1,67 @@
+---
+title: "RTS Distribution Model"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load Libraries
+
+```{r}
+library(biomod2)
+library(sf)
+library(terra)
+library(tidyterra)
+library(viridis)
+library(tidyverse)
+```
+
+
+# Load Data
+
+```{r}
+pca = rast('./pca/pca.tif')
+
+arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.17-alpha/ARTS_main_dataset.geojson') |>
+  distinct() |>
+  st_make_valid() |>
+  filter(TrainClass == 'Positive') |>
+  filter(CentroidLat == first(CentroidLat),
+         .by = UID)
+```
+
+
+# Aggregate RTS Delineations to Presence/Absence in 1 km Grid
+
+```{r}
+arts_poly_rast = rasterizeGeom(
+  vect(arts %>%
+    filter(st_geometry_type(.) == 'POLYGON' | st_geometry_type(.) == 'MULTIPOLYGON')), 
+  pca,
+  fun = 'count'
+) |>
+  classify(matrix(c(0, NA), ncol = 2))
+
+arts_point_rast = rasterizeGeom(
+  vect(arts %>%
+    filter(st_geometry_type(.) == 'POINT')), 
+  pca,
+  fun = 'count'
+) |>
+  classify(matrix(c(0, NA), ncol = 2))
+
+arts_rast = arts_poly_rast + arts_point_rast
+```
+
+```{r}
+arts_grid = arts_rast |>
+  as.data.frame(xy = TRUE, na.rm = TRUE)
+```
+
+```{r}
+ggplot() +
+  geom_spatraster(data = arts_rast) +
+  scale_fill_viridis(na.value = 'transparent') +
+  coord_sf(expand = FALSE)
+```
+
