@@ -39,29 +39,129 @@ arts_poly_rast = rasterizeGeom(
     filter(st_geometry_type(.) == 'POLYGON' | st_geometry_type(.) == 'MULTIPOLYGON')), 
   pca,
   fun = 'count'
-) |>
-  classify(matrix(c(0, NA), ncol = 2))
+)
 
 arts_point_rast = rasterizeGeom(
   vect(arts %>%
     filter(st_geometry_type(.) == 'POINT')), 
   pca,
   fun = 'count'
-) |>
-  classify(matrix(c(0, NA), ncol = 2))
+)
 
 arts_rast = arts_poly_rast + arts_point_rast
+
+arts_rast = arts_rast |>
+  classify(matrix(c(0, NA), ncol = 2))
 ```
 
 ```{r}
 arts_grid = arts_rast |>
-  as.data.frame(xy = TRUE, na.rm = TRUE)
+  as.data.frame(xy = TRUE, na.rm = TRUE) |>
+  rename(count = area) |>
+  mutate(rts = case_when(count >= 1 ~ 1,
+                           count == 0 ~ 0))
 ```
+
+geom_spatraster isn't great for displaying this data, because the summarizing used to make it plot faster makes a lot of the data look like it's not there
 
 ```{r}
 ggplot() +
   geom_spatraster(data = arts_rast) +
+  geom_sf(data = arts,
+          linewidth = 0.25,
+          size = 0.25,
+          color = 'black',
+          fill = 'transparent') +
   scale_fill_viridis(na.value = 'transparent') +
   coord_sf(expand = FALSE)
+
+ggplot() +
+  geom_spatraster(
+    data = arts_rast |>
+      crop(ext(-800000, -650000, -900000, -750000))
+    ) +
+  geom_sf(
+    data = arts |>
+      st_crop(
+        st_bbox(
+          c(
+            xmin = -800000, 
+            xmax = -650000, 
+            ymin = -900000, 
+            ymax = -750000
+          )
+        )
+      ),
+    linewidth = 0.25,
+    size = 0.25,
+    color = 'black',
+    fill = 'transparent'
+    ) +
+  scale_fill_viridis(na.value = 'transparent') +
+  coord_sf(
+    # xlim = c(-800000, -650000),
+    # ylim = c(-900000, -750000),
+    expand = FALSE
+    )
+
+ggplot() +
+  geom_spatraster(
+    data = arts_poly_rast |>
+      crop(ext(-800000, -650000, -900000, -750000)) |>
+      classify(matrix(c(0, NA), ncol = 2))
+  ) +
+  geom_sf(
+    data = arts |>
+      st_crop(
+        st_bbox(
+          c(
+            xmin = -800000, 
+            xmax = -650000, 
+            ymin = -900000, 
+            ymax = -750000
+          )
+        )
+      ),
+    # linewidth = 0.25,
+    # size = 0.25,
+    # color = 'black',
+    # fill = 'transparent'
+    ) +
+  scale_fill_viridis(na.value = 'transparent') +
+  coord_sf(
+    # xlim = c(-800000, -650000),
+    # ylim = c(-900000, -750000),
+    expand = FALSE
+    )
+
+ggplot() +
+  geom_spatraster(
+    data = arts_point_rast |>
+      crop(ext(-800000, -650000, -900000, -750000)) |>
+      classify(matrix(c(0, NA), ncol = 2))
+  ) +
+  geom_sf(
+    data = arts |>
+      st_crop(
+        st_bbox(
+          c(
+            xmin = -800000, 
+            xmax = -650000, 
+            ymin = -900000, 
+            ymax = -750000
+          )
+        )
+      ),
+    # linewidth = 0.25,
+    # size = 0.25,
+    # color = 'black',
+    # fill = 'transparent'
+    ) +
+  scale_fill_viridis(na.value = 'transparent') +
+  coord_sf(
+    # xlim = c(-800000, -650000),
+    # ylim = c(-900000, -750000),
+    expand = FALSE
+    )
 ```
 
