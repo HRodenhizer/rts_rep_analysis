@@ -22,10 +22,10 @@ library(tidyverse)
 ```{r}
 pca = rast('./pca/pca.tif')
 
-arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.17-alpha/ARTS_main_dataset.geojson') |>
+arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.20-alpha/ARTS_main_dataset.geojson') |>
   distinct() |>
   st_make_valid() |>
-  filter(TrainClass == 'Positive') |>
+  # keep one polygon per RTS only
   filter(CentroidLat == first(CentroidLat),
          .by = UID)
 ```
@@ -33,17 +33,25 @@ arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.17-alpha/ARTS_main_dataset.geojs
 
 # Aggregate RTS Delineations to Presence/Absence in 1 km Grid
 
+Presence Data
+
 ```{r}
 arts_poly_rast = rasterizeGeom(
   vect(arts %>%
-    filter(st_geometry_type(.) == 'POLYGON' | st_geometry_type(.) == 'MULTIPOLYGON')), 
+         filter(
+           TrainClass == 'Positive' &
+             (st_geometry_type(.) == 'POLYGON' | st_geometry_type(.) == 'MULTIPOLYGON'))
+  ), 
   pca,
   fun = 'count'
 )
 
 arts_point_rast = rasterizeGeom(
   vect(arts %>%
-    filter(st_geometry_type(.) == 'POINT')), 
+         filter(
+           TrainClass == 'Positive' &
+             st_geometry_type(.) == 'POINT')
+  ), 
   pca,
   fun = 'count'
 )
@@ -52,16 +60,21 @@ arts_rast = arts_poly_rast + arts_point_rast
 
 arts_rast = arts_rast |>
   classify(matrix(c(0, NA), ncol = 2))
-```
+# this can be run instead of classify to return 0 for all cells without observed RTS, but that is probably not a good way to do things since we know that there are actually RTS in many of the cells with 0
+  # mask(pca |>
+  #        subset(1))
 
-```{r}
+# Convert to data frame
 arts_grid = arts_rast |>
   as.data.frame(xy = TRUE, na.rm = TRUE) |>
   rename(count = area) |>
   mutate(rts = case_when(count >= 1 ~ 1,
                            count == 0 ~ 0))
+
+rm(arts_poly_rast, arts_point_rast)
 ```
 
+Plot
 geom_spatraster isn't great for displaying this data, because the summarizing used to make it plot faster makes a lot of the data look like it's not there
 
 ```{r}
@@ -104,64 +117,49 @@ ggplot() +
     expand = FALSE
     )
 
-ggplot() +
-  geom_spatraster(
-    data = arts_poly_rast |>
-      crop(ext(-800000, -650000, -900000, -750000)) |>
-      classify(matrix(c(0, NA), ncol = 2))
-  ) +
-  geom_sf(
-    data = arts |>
-      st_crop(
-        st_bbox(
-          c(
-            xmin = -800000, 
-            xmax = -650000, 
-            ymin = -900000, 
-            ymax = -750000
-          )
-        )
-      ),
-    # linewidth = 0.25,
-    # size = 0.25,
-    # color = 'black',
-    # fill = 'transparent'
-    ) +
-  scale_fill_viridis(na.value = 'transparent') +
-  coord_sf(
-    # xlim = c(-800000, -650000),
-    # ylim = c(-900000, -750000),
-    expand = FALSE
-    )
+```
 
-ggplot() +
-  geom_spatraster(
-    data = arts_point_rast |>
-      crop(ext(-800000, -650000, -900000, -750000)) |>
-      classify(matrix(c(0, NA), ncol = 2))
-  ) +
-  geom_sf(
-    data = arts |>
-      st_crop(
-        st_bbox(
-          c(
-            xmin = -800000, 
-            xmax = -650000, 
-            ymin = -900000, 
-            ymax = -750000
-          )
-        )
-      ),
-    # linewidth = 0.25,
-    # size = 0.25,
-    # color = 'black',
-    # fill = 'transparent'
-    ) +
-  scale_fill_viridis(na.value = 'transparent') +
-  coord_sf(
-    # xlim = c(-800000, -650000),
-    # ylim = c(-900000, -750000),
-    expand = FALSE
-    )
+Absence Data
+
+```{r}
+arts_neg_rast = rasterizeGeom(
+  vect(arts %>%
+         filter(TrainClass == 'Negative') %>%
+         st_union()), 
+  pca,
+  fun = 'area'
+)
+
+arts_neg_rast = arts_neg_rast |>
+  classify(matrix(c(0, 0, NA, 1, Inf, 0), ncol = 3, byrow = TRUE))
+
+# Make sure that negative 1 km cells don't have any observed RTS in them outside of the negative bounding box
+arts_neg_rast[!is.na(arts_neg_rast) & !is.na(arts_rast)] = NA
+
+# Convert to data frame
+arts_neg_grid = arts_neg_rast |>
+  as.data.frame(xy = TRUE, na.rm = TRUE) |>
+  rename(count = area) |>
+  mutate(rts = count)
+```
+
+Combine Presence and Absence Data
+
+```{r}
+arts_grid = arts_grid |>
+  full_join(arts_neg_grid,
+            by = c(x, y))
+```
+
+
+# Format Data for SDM
+
+```{r}
+arts_biomod = BIOMOD_FormatingData(
+  resp.var = pull(arts_grid, rts),
+  exp1.var = pca,
+  resp.xy = select(arts_grid, x, y),
+  resp.name = 'rts'
+)
 ```
 
