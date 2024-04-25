@@ -21,7 +21,7 @@ library(tidyverse)
 # Load Data
 
 ```{r}
-arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.17-alpha/ARTS_main_dataset.geojson') |>
+arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.20-alpha/ARTS_main_dataset.geojson') |>
   distinct() |>
   st_make_valid()
 

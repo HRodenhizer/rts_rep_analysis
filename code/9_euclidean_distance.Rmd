@@ -188,6 +188,8 @@ Running on 18 cores in parallel, this takes about 9.4 seconds for 10000 pixels, 
 
 With a dataset of ~14500 polygons, this should take about 25 hours. It took 1.18 days with version 17.
 
+For version 20, there are ~21000 polygons, so it should take about somewhere between 36 and 41 hours. It took 1.55 days.
+
 ```{r}
 n_polys = length(arts_pc_l)
 n_pixels = length(pca_l)
@@ -248,7 +250,7 @@ values(euc_dist_rast[[4]])[pca_df$cell] = counts[,4]
 
 names(euc_dist_rast) = c('dist_1_count', 'dist_2_count', 'dist_3_count', 'mean_dist')
 
-writeRaster(euc_dist_rast, './euclidean_distance/polygon_counts_1_2_3_v17.tif')
+writeRaster(euc_dist_rast, './euclidean_distance/polygon_counts_1_2_3_v20.tif')
 ```
 
 ```{r}
