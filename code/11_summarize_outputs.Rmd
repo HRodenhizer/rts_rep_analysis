@@ -32,6 +32,8 @@ hydrothermal = st_read('./input_data/NIEERPermafrost/NIEER_permafrost_dataset_re
   group_by(Extent) |>
   summarize(geometry = st_union(geometry)) |>
   st_simplify()
+arts_pc = st_read('./pca/arts_pc.geojson')
+pca = rast('./pca/pca.tif')
 ```
 
 
@@ -218,5 +220,30 @@ ggplot() +
   scale_color_viridis(na.value = 'transparent') +
   scale_fill_viridis(na.value = 'transparent')
 
+```
+
+# PCA Environmental Space vs. RTS Environmental Space
+
+```{r}
+pca_df = pca |>
+  as.data.frame(cell = TRUE, xy = TRUE, na.rm = TRUE)
+```
+
+```{r, fig.height = 6.5, fig.width = 6.5}
+ggplot(pca_df, aes(x = PC1, y = PC2)) +
+  geom_hex(aes(color = after_stat(count), fill = after_stat(count))) +
+  scale_color_viridis(name = 'Count') +
+  scale_fill_viridis(name = 'Count') +
+  geom_point(data = arts_pc, 
+             aes(x = PC1, y = PC2),
+             color = 'black',
+             alpha = 0.2)
+
+# ggsave('./figures/rts_over_pca.pdf',
+#        height = 6.5,
+#        width = 6.5)
+# ggsave('./figures/rts_over_pca.jpg',
+#        height = 6.5,
+#        width = 6.5)
 ```
 
