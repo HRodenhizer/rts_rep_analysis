@@ -12,6 +12,7 @@ library(terra)
 library(tidyterra)
 library(sf)
 library(viridis)
+library(ggnewscale)
 library(tidyverse)
 ```
 
@@ -234,7 +235,59 @@ ggplot(pca_df, aes(x = PC1, y = PC2)) +
   geom_hex(aes(color = after_stat(count), fill = after_stat(count))) +
   scale_color_viridis(name = 'Count') +
   scale_fill_viridis(name = 'Count') +
-  geom_point(data = arts_pc, 
+  new_scale_color() +
+  geom_point(data = arts_pc,
+             aes(x = PC1, y = PC2, color = as.numeric(CentroidLon)),
+             alpha = 0.2) +
+  scale_color_gradient(name = 'Longitude',
+                       low = 'white',
+                       high = 'black') +
+  # Svalbard in red
+  geom_point(
+    data = arts_pc |> 
+      filter(as.numeric(CentroidLon) < 45 & as.numeric(CentroidLon) > 10),
+    aes(x = PC1, y = PC2),
+    color = 'red',
+    inherit.aes = FALSE
+  ) +
+  # Lena River in Orange
+  geom_point(
+    data = arts_pc |> 
+      filter(as.numeric(CentroidLon) > 120 & as.numeric(CentroidLon) < 125),
+    aes(x = PC1, y = PC2),
+    color = 'orange',
+    inherit.aes = FALSE
+  ) +
+  # Lena Delta in Yellow
+  geom_point(
+    data = arts_pc |> 
+      filter(as.numeric(CentroidLon) > 125 & as.numeric(CentroidLon) < 130),
+    aes(x = PC1, y = PC2),
+    color = 'yellow',
+    inherit.aes = FALSE
+  ) +
+  # Batagay in Green
+  geom_point(
+    data = arts_pc |> 
+      filter(as.numeric(CentroidLon) > 130 & as.numeric(CentroidLon) < 140),
+    aes(x = PC1, y = PC2),
+    color = 'green',
+    inherit.aes = FALSE
+  )
+
+# ggsave('./figures/rts_over_pca_regions.pdf',
+#        height = 6.5,
+#        width = 6.5)
+# ggsave('./figures/rts_over_pca_regions.jpg',
+#        height = 6.5,
+#        width = 6.5)
+
+ggplot(pca_df, aes(x = PC1, y = PC2)) +
+  geom_hex(aes(color = after_stat(count), fill = after_stat(count))) +
+  scale_color_viridis(name = 'Count') +
+  scale_fill_viridis(name = 'Count') +
+  new_scale_color() +
+  geom_point(data = arts_pc,
              aes(x = PC1, y = PC2),
              color = 'black',
              alpha = 0.2)
