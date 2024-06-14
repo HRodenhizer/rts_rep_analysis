@@ -22,7 +22,7 @@ library(tidyverse)
 ```{r}
 pca = rast('./pca/pca.tif')
 
-arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.20-alpha/ARTS_main_dataset.geojson') |>
+arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.23-alpha/ARTS_main_dataset.geojson') |>
   distinct() |>
   st_make_valid() |>
   # keep one polygon per RTS only
@@ -122,24 +122,22 @@ ggplot() +
 Absence Data
 
 ```{r}
-arts_neg_rast = rasterizeGeom(
+arts_neg_rast = rasterize(
   vect(arts %>%
-         filter(TrainClass == 'Negative') %>%
-         st_union()), 
-  pca,
-  fun = 'area'
+         filter(TrainClass == 'Negative')), 
+  pca
 )
 
 arts_neg_rast = arts_neg_rast |>
-  classify(matrix(c(0, 0, NA, 1, Inf, 0), ncol = 3, byrow = TRUE))
+  classify(matrix(c(1, 0), ncol = 2, byrow = TRUE))
 
 # Make sure that negative 1 km cells don't have any observed RTS in them outside of the negative bounding box
-arts_neg_rast[!is.na(arts_neg_rast) & !is.na(arts_rast)] = NA
+arts_neg_rast[arts_neg_rast == 0 & !is.na(arts_rast)] = NA
 
 # Convert to data frame
 arts_neg_grid = arts_neg_rast |>
   as.data.frame(xy = TRUE, na.rm = TRUE) |>
-  rename(count = area) |>
+  rename(count = layer) |>
   mutate(rts = count)
 ```
 
@@ -147,19 +145,39 @@ Combine Presence and Absence Data
 
 ```{r}
 arts_grid = arts_grid |>
-  full_join(arts_neg_grid,
-            by = c(x, y))
+  bind_rows(arts_neg_grid)
 ```
 
+Split into Training and Validation Sets
+
+```{r}
+# arts_grid_split = arts_grid |>
+#   mutate(
+#     group = sample(
+#       c('training', 'validation'), 
+#       size = n(), 
+#       prob = c(0.8, 0.2),
+#       replace = TRUE
+#     )
+#   ) |>
+#   group_by(group) |>
+#   group_split()
+```
 
 # Format Data for SDM
 
 ```{r}
 arts_biomod = BIOMOD_FormatingData(
-  resp.var = pull(arts_grid, rts),
-  exp1.var = pca,
-  resp.xy = select(arts_grid, x, y),
+  resp.var = arts_grid |> pull(rts),
+  expl.var = pca,
+  resp.xy = arts_grid |> select(x, y),
   resp.name = 'rts'
 )
+```
+
+# Run Models
+
+```{r}
+
 ```
 

@@ -21,7 +21,7 @@ library(tidyverse)
 # Load Data
 
 ```{r}
-arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.20-alpha/ARTS_main_dataset.geojson') |>
+arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.23-alpha/ARTS_main_dataset.geojson') |>
   distinct() |>
   st_make_valid()
 
@@ -120,7 +120,7 @@ arts_pc |>
 
 ```{r}
 # st_write(arts_pc,
-#          './pca/arts_pc.geojson')
+#          './pca/arts_pc_v.0.0.23-alpha.geojson')
 ```
 
 ```{r}
