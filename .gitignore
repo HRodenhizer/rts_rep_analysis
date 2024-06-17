@@ -4,6 +4,8 @@ figures/
 kmeans/
 pca/
 euclidean_distance/
+rts/
+sdm/
 *.mp4
 
 # History files
