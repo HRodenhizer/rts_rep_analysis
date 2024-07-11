@@ -26,7 +26,7 @@ theme_set(theme_bw())
 ```{r}
 pca = rast('./pca/pca.tif')
 
-arts = st_read('../ARTS/ARTS_main_dataset/v.0.0.23-alpha/ARTS_main_dataset.geojson') |>
+arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.0/ARTS_main_dataset_v.1.0.0.geojson') |>
   distinct() |>
   st_make_valid() |>
   # keep one polygon per RTS only
@@ -156,56 +156,102 @@ arts_grid = arts_grid |>
   bind_rows(arts_neg_grid)
 ```
 
-Split into Training and Validation Sets
-
-```{r}
-# arts_grid_split = arts_grid |>
-#   mutate(
-#     group = sample(
-#       c('training', 'validation'), 
-#       size = n(), 
-#       prob = c(0.8, 0.2),
-#       replace = TRUE
-#     )
-#   ) |>
-#   group_by(group) |>
-#   group_split()
-```
-
 # Format Data for SDM
 
 ```{r}
-# arts_biomod = BIOMOD_FormatingData(
-#   resp.var = arts_grid |> pull(rts),
-#   expl.var = pca,
-#   resp.xy = arts_grid |> select(x, y),
-#   resp.name = 'rts'
-# )
+arts_biomod = BIOMOD_FormatingData(
+  resp.var = arts_grid |> pull(rts),
+  expl.var = pca |> subset(1:6),
+  resp.xy = arts_grid |> select(x, y),
+  resp.name = 'rts'
+)
+
+saveRDS(arts_biomod, './sdm/arts_biomod_v.1.0.0.rds')
+# arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.0.rds')
 ```
 
 # Run Models
 
 ```{r}
-# rts_model = BIOMOD_Modeling(
-#   arts_biomod,
-#   modeling.id = "Initial GBM 10 K-fold Validation",
-#   models = c("GBM"),
-#   CV.strategy = "kfold",
-#   # CV.nb.rep = 10,
-#   CV.k = 10,
-#   OPT.strategy = 'bigboss',
-#   metric.eval = c('TSS','ROC'),
-#   var.import = 2,
-#   seed.val = 42
-# )
+print(Sys.time())
+opt.d = bm_ModelingOptions(
+  data.type = 'binary',
+  models = "GBM",
+  strategy = 'default'
+)
+
+print(Sys.time())
+cv_kfold = bm_CrossValidation(
+  arts_biomod,
+  strategy = 'kfold',
+  nb.rep = 1,
+  k = 10
+)
+
+print(Sys.time())
+tuned.gbm = bm_Tuning(
+  model = "GBM",
+  tuning.fun = "gbm", ## see in ModelsTable
+  bm.options = opt.d@options$GBM.binary.gbm.gbm,
+  do.formula = FALSE,
+  bm.format = arts_biomod,
+  calib.lines = cv_kfold
+)
+
+print(Sys.time())
 ```
 
 ```{r}
-# saveRDS(rts_model,
-#         './sdm/rts_gbm_kfold_10.rds')
-# 
+print(Sys.time())
+opt.t = bm_ModelingOptions(
+  data.type = 'binary',
+  models = "GBM",
+  strategy = "user.defined",
+  user.val = list(GBM.binary.gbm.gbm = tuned.gbm),
+  user.base = "bigboss",
+  bm.format = arts_biomod,
+  calib.lines = cv_kfold
+)
+print(Sys.time())
 
-rts_model = readRDS('./sdm/rts_gbm_kfold_10.rds')
+rts_model= BIOMOD_Modeling(
+  arts_biomod,
+  modeling.id = "GBM 10 K-fold Validation Tuned",
+  models = c("GBM"),
+  CV.strategy = "user.defined",
+  CV.user.table = cv_kfold,
+  OPT.strategy = "user.defined",
+  OPT.user = opt.t,
+  metric.eval = c('TSS','ROC'),
+  seed.val = 42,
+  nb.cpu = 19
+)
+
+print(Sys.time())
+```
+
+```{r}
+# print(Sys.time())
+# rts_model = BIOMOD_Modeling(
+#   arts_biomod,
+#   modeling.id = "GBM 10 K-fold Validation Tuned",
+#   models = c("GBM"),
+#   CV.strategy = "kfold",
+#   CV.k = 10,
+#   OPT.strategy = 'tuned',
+#   metric.eval = c('TSS','ROC'),
+#   seed.val = 42,
+#   nb.cpu = 19
+# )
+# print(Sys.time())
+```
+
+```{r}
+saveRDS(rts_model,
+        './sdm/rts_gbm_kfold_10_tuned.rds')
+
+
+# rts_model = readRDS('./sdm/rts_gbm_kfold_10_tuned.rds')
 ```
 
 ```{r}
@@ -222,58 +268,59 @@ bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'run')
 bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('algo', 'expl.var', 'run'))
 
 # Represent response curves
-bm_PlotResponseCurves(bm.out = rts_model, 
+bm_PlotResponseCurves(bm.out = rts_model,
                       models.chosen = get_built_models(rts_model)[c(1:3, 12:14)],
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = rts_model, 
+bm_PlotResponseCurves(bm.out = rts_model,
                       models.chosen = get_built_models(rts_model)[c(1:3, 12:14)],
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = rts_model, 
+bm_PlotResponseCurves(bm.out = rts_model,
                       models.chosen = get_built_models(rts_model)[3],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
 ```
 
 ```{r}
-# rts_pred <- BIOMOD_Projection(bm.mod = rts_model,
-#                                   proj.name = 'Current',
-#                                   new.env = pca,
-#                                   models.chosen = 'all',
-#                                   # models.chosen = 'rts_allData_allRun_GBM',
-#                                   metric.binary = 'all',
-#                                   metric.filter = 'all',
-#                                   build.clamping.mask = TRUE)
+print(Sys.time())
+rts_pred <- BIOMOD_Projection(
+  bm.mod = rts_model,
+  proj.name = 'Current',
+  new.env = pca,
+  models.chosen = 'all',
+  # models.chosen = 'rts_allData_allRun_GBM',
+  metric.binary = 'all',
+  metric.filter = 'all',
+  build.clamping.mask = TRUE,
+  nb.cpu = 19
+)
+print(Sys.time())
 # rts_pred
-# plot(rts_pred)
+plot(rts_pred)
 ```
 
 ```{r}
-# saveRDS(rts_pred,
-#         './sdm/rts_gbm_kfold_10_pred.rds')
+saveRDS(rts_pred,
+        './sdm/rts_gbm_kfold_10_pred_tuned.rds')
 
-rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred.rds')
+# rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred_tuned.rds')
 ```
 
 ```{r}
 rts_susceptibility = rast('./rts/proj_Current/proj_Current_rts.tif')
 
-plot(rts_pred) +
-  # geom_sf(data = world, fill = 'transparent') +
-  scale_fill_viridis(na.value = 'transparent') +
-  coord_sf(expand = FALSE)
-
-# ggsave('./figures/gbm_kfold_10_pred_all.jpg',
-#        height = 5,
-#        width = 6.5)
+# plot(rts_pred) +
+#   # geom_sf(data = world, fill = 'transparent') +
+#   scale_fill_viridis(na.value = 'transparent') +
+#   coord_sf(expand = FALSE)
 
 ggplot() +
-  geom_sf(data = world, fill = 'transparent') +
+  geom_sf(data = world) +
   geom_spatraster(data = rts_susceptibility |> subset(11)) +
   scale_fill_viridis(na.value = 'transparent') +
   coord_sf(expand = FALSE)
 
-# ggsave('./figures/gbm_kfold_10_pred.jpg',
-#        height = 5.5,
-#        width = 6.5)
+ggsave('./figures/gbm_kfold_10_pred_all_tuned.jpg',
+       height = 5,
+       width = 6.5)
 ```
 
