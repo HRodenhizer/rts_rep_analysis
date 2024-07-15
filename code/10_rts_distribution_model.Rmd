@@ -173,70 +173,70 @@ arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.0.rds')
 # Run Models
 
 ```{r}
-print(Sys.time())
-opt.d = bm_ModelingOptions(
-  data.type = 'binary',
-  models = "GBM",
-  strategy = 'default'
-)
-
-print(Sys.time())
-cv_kfold = bm_CrossValidation(
-  arts_biomod,
-  strategy = 'kfold',
-  nb.rep = 1,
-  k = 10,
-  do.full.models = TRUE
-)
-
-print(Sys.time())
-tuned.gbm = bm_Tuning(
-  model = "GBM",
-  tuning.fun = "gbm", ## see in ModelsTable
-  bm.options = opt.d@options$GBM.binary.gbm.gbm,
-  do.formula = FALSE,
-  bm.format = arts_biomod,
-  calib.lines = cv_kfold
-)
-
-print(Sys.time())
+# print(Sys.time())
+# opt.d = bm_ModelingOptions(
+#   data.type = 'binary',
+#   models = "GBM",
+#   strategy = 'default'
+# )
+# 
+# print(Sys.time())
+# cv_kfold = bm_CrossValidation(
+#   arts_biomod,
+#   strategy = 'kfold',
+#   nb.rep = 1,
+#   k = 10,
+#   do.full.models = TRUE
+# )
+# 
+# print(Sys.time())
+# tuned.gbm = bm_Tuning(
+#   model = "GBM",
+#   tuning.fun = "gbm", ## see in ModelsTable
+#   bm.options = opt.d@options$GBM.binary.gbm.gbm,
+#   do.formula = FALSE,
+#   bm.format = arts_biomod,
+#   calib.lines = cv_kfold
+# )
+# 
+# print(Sys.time())
 ```
 
 ```{r}
-print(Sys.time())
-opt.t = bm_ModelingOptions(
-  data.type = 'binary',
-  models = "GBM",
-  strategy = "user.defined",
-  user.val = list(GBM.binary.gbm.gbm = tuned.gbm),
-  user.base = "bigboss",
-  bm.format = arts_biomod,
-  calib.lines = cv_kfold
-)
-print(Sys.time())
-
-rts_model= BIOMOD_Modeling(
-  arts_biomod,
-  modeling.id = "GBM 10 K-fold Validation Tuned",
-  models = c("GBM"),
-  CV.strategy = "user.defined",
-  CV.user.table = cv_kfold,
-  OPT.strategy = "user.defined",
-  OPT.user = opt.t,
-  metric.eval = c('TSS','ROC'),
-  seed.val = 42,
-  nb.cpu = 19
-)
-
-print(Sys.time())
+# print(Sys.time())
+# opt.t = bm_ModelingOptions(
+#   data.type = 'binary',
+#   models = "GBM",
+#   strategy = "user.defined",
+#   user.val = list(GBM.binary.gbm.gbm = tuned.gbm),
+#   user.base = "bigboss",
+#   bm.format = arts_biomod,
+#   calib.lines = cv_kfold
+# )
+# print(Sys.time())
+# 
+# rts_model= BIOMOD_Modeling(
+#   arts_biomod,
+#   modeling.id = "GBM 10 K-fold Validation Tuned",
+#   models = c("GBM"),
+#   CV.strategy = "user.defined",
+#   CV.user.table = cv_kfold,
+#   OPT.strategy = "user.defined",
+#   OPT.user = opt.t,
+#   metric.eval = c('TSS','ROC'),
+#   seed.val = 42,
+#   nb.cpu = 19
+# )
+# 
+# print(Sys.time())
 ```
 
 ```{r}
-saveRDS(rts_model,
-        './sdm/rts_gbm_kfold_10_tuned.rds')
+# saveRDS(rts_model,
+#         './sdm/rts_gbm_kfold_10_tuned.rds')
 
 
-# rts_model = readRDS('./sdm/rts_gbm_kfold_10_tuned.rds')
+rts_model = readRDS('./sdm/rts_gbm_kfold_10_tuned.rds')
 ```
 
 ```{r}
@@ -248,64 +248,135 @@ get_variables_importance(rts_model)
 bm_PlotEvalMean(bm.out = rts_model)
 bm_PlotEvalBoxplot(bm.out = rts_model, group.by = c('algo', 'algo'))
 bm_PlotEvalBoxplot(bm.out = rts_model, group.by = c('algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'algo'))
-bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('algo', 'expl.var', 'run'))
+# bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'algo'))
+# bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'run'))
+# bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('algo', 'expl.var', 'run'))
 
 # Represent response curves
 bm_PlotResponseCurves(bm.out = rts_model,
-                      models.chosen = get_built_models(rts_model)[c(1:3, 12:14)],
+                      models.chosen = get_built_models(rts_model)[c(1:11)],
                       fixed.var = 'median')
 bm_PlotResponseCurves(bm.out = rts_model,
-                      models.chosen = get_built_models(rts_model)[c(1:3, 12:14)],
+                      models.chosen = get_built_models(rts_model)[c(1:11)],
                       fixed.var = 'min')
 bm_PlotResponseCurves(bm.out = rts_model,
-                      models.chosen = get_built_models(rts_model)[3],
+                      models.chosen = get_built_models(rts_model)[11],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
 ```
 
+# Predict Across Circumpolar
+
 ```{r}
-print(Sys.time())
-rts_pred <- BIOMOD_Projection(
-  bm.mod = rts_model,
-  proj.name = 'Current',
-  new.env = pca,
-  models.chosen = 'all',
-  # models.chosen = 'rts_allData_allRun_GBM',
-  metric.binary = 'all',
-  metric.filter = 'all',
-  build.clamping.mask = TRUE,
-  nb.cpu = 19
-)
-print(Sys.time())
-# rts_pred
-plot(rts_pred)
+# print(Sys.time())
+# rts_pred <- BIOMOD_Projection(
+#   bm.mod = rts_model,
+#   proj.name = 'Current',
+#   new.env = pca %>% select(1:6),
+#   # models.chosen = 'all',
+#   models.chosen = 'rts_allData_allRun_GBM',
+#   metric.binary = 'all',
+#   metric.filter = 'all',
+#   build.clamping.mask = TRUE,
+#   nb.cpu = 19
+# )
+# print(Sys.time())
+# # rts_pred
+# plot(rts_pred)
+# 
+# rts_susceptibility = rast('./rts/proj_Current/proj_Current_rts.tif')
 ```
 
 ```{r}
-saveRDS(rts_pred,
-        './sdm/rts_gbm_kfold_10_pred_tuned.rds')
+# saveRDS(rts_pred,
+#         './sdm/rts_gbm_kfold_10_pred_tuned.rds')
 
-# rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred_tuned.rds')
+rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred_tuned.rds')
+
+# writeRaster(rts_susceptibility,
+#             './sdm/gbm_kfold_10_pred_tuned_combined.tif')
+
+rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined.tif')
 ```
 
 ```{r}
-rts_susceptibility = rast('./rts/proj_Current/proj_Current_rts.tif')
-
-# plot(rts_pred) +
-#   # geom_sf(data = world, fill = 'transparent') +
-#   scale_fill_viridis(na.value = 'transparent') +
-#   coord_sf(expand = FALSE)
-
 ggplot() +
   geom_sf(data = world) +
-  geom_spatraster(data = rts_susceptibility |> subset(11)) +
+  geom_spatraster(data = rts_susceptibility,
+                  maxcell = 1e+07) +
   scale_fill_viridis(na.value = 'transparent') +
   coord_sf(expand = FALSE)
 
-ggsave('./figures/gbm_kfold_10_pred_all_tuned.jpg',
-       height = 5,
+# ggsave('./figures/gbm_kfold_10_pred_tuned.jpg',
+#        height = 5,
+#        width = 6.5)
+```
+
+# Classify into Susceptibility Zones
+Using <=50%, >50-75%, >75-90%, >90-95%, >95% following Makopoulou et al. 2024
+
+```{r}
+rts_quantiles = global(
+  rts_susceptibility, 
+  fun = quantile, 
+  probs = c(0.50, 0.75, 0.90, 0.95),
+  na.rm = TRUE
+  ) |>
+  as.numeric()
+
+rts_susceptibility_class = rts_susceptibility |>
+  classify(
+    rcl = matrix(
+      c(0, rts_quantiles[1], 1,
+        rts_quantiles[1], rts_quantiles[2], 2,
+        rts_quantiles[2], rts_quantiles[3], 3,
+        rts_quantiles[3], rts_quantiles[4], 4,
+        rts_quantiles[4], Inf, 5),
+      ncol = 3,
+      byrow = TRUE
+    )
+  )
+
+levels(rts_susceptibility_class) = tibble(
+  id = seq(1, 5),
+  susceptibility_class = c('Very Low (<=50%)',
+                           'Low (>50-75%)',
+                           'Medium (>75-90%)',
+                           'High (>90-95%)',
+                           'Very High (>95%)')
+)
+```
+
+```{r, fig.height = 6, fig.width = 6.5}
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(
+    data = rts_susceptibility_class,
+    maxcell = 1e+07
+  ) +
+  scale_fill_viridis(name = 'RTS Susceptibility',
+                     discrete = TRUE,
+                     na.value = 'transparent',
+                     na.translate = FALSE) +
+  # scale_fill_manual(name = 'RTS Susceptibility',
+  #                   values = c('#003388', 
+  #                              '#3399FF', 
+  #                              '#FFFF33', 
+  #                              '#FF6600', 
+  #                              '#CC0000'),
+  #                   na.value = 'transparent',
+  #                   na.translate = FALSE) +
+  coord_sf(expand = FALSE) +
+  theme(legend.position = 'inside',
+        legend.justification = c(1, 0),
+        legend.position.inside = c(0.998, 0.002))
+
+ggsave('./figures/rts_susceptibility.jpg',
+       height = 6,
        width = 6.5)
+
+# ggsave('./figures/rts_susceptibility_blue_red.jpg',
+#        height = 6,
+#        width = 6.5)
 ```
 
