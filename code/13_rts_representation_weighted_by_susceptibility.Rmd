@@ -1,0 +1,92 @@
+---
+title: "RTS Representation"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load Packages
+
+```{r}
+library(terra)
+library(tidyterra)
+library(sf)
+library(viridis)
+library(tidyverse)
+```
+
+```{r}
+theme_set(theme_bw())
+```
+
+
+# Load Data
+
+```{r}
+rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined_class.tif')
+rts_susceptibility_m = rast('../makopoulou_data/Susceptibility_Map.tif') |>
+  project(rts_susceptibility, method = 'near')
+euc_dist = rast('./euclidean_distance/polygon_counts_1_2_3_v20.tif')
+```
+
+```{r}
+world = rnaturalearth::ne_countries(scale = "large", returnclass = "sf")
+world = world |>
+  st_transform(3413) |>
+  st_crop(ext(rts_susceptibility))
+```
+
+
+# Weight RTS Representation
+
+```{r}
+rts_rep_weighted = (
+  euc_dist[['dist_2_count']]/
+    as.numeric(
+      global(euc_dist[['dist_2_count']], 
+             fun = 'max', 
+             na.rm = TRUE)
+      )*-1 + 1
+  )
+rts_rep_weighted = rts_rep_weighted*rts_susceptibility/5
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(data = rts_rep_weighted) +
+  scale_fill_viridis(name = 'Need for Data',
+                     na.value = 'transparent') +
+  coord_sf(expand = FALSE) +
+  ggtitle('RTS Knowledge Gaps Weighted by RTS Susceptibility (Woodwell)')
+
+ggsave('./figures/rts_knowledge_gaps_woodwell.jpg',
+       height = 6,
+       width = 8)
+```
+
+```{r}
+rts_rep_weighted_m = (
+  euc_dist[['dist_2_count']]/
+    as.numeric(
+      global(euc_dist[['dist_2_count']], 
+             fun = 'max', 
+             na.rm = TRUE)
+      )*-1 + 1
+  )
+rts_rep_weighted_m = rts_rep_weighted_m*rts_susceptibility_m/5
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(data = rts_rep_weighted_m) +
+  scale_fill_viridis(name = 'Need for Data',
+                     na.value = 'transparent') +
+  coord_sf(expand = FALSE) +
+  ggtitle('RTS Knowledge Gaps Weighted by RTS Susceptibility (Makopoulou)')
+
+ggsave('./figures/rts_knowledge_gaps_makopoulou.jpg',
+       height = 6,
+       width = 8)
+```

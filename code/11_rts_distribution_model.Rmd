@@ -26,7 +26,7 @@ theme_set(theme_bw())
 ```{r}
 pca = rast('./pca/pca.tif')
 
-arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.0/ARTS_main_dataset_v.1.0.0.geojson') |>
+arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.1/ARTS_main_dataset_v.1.0.1.geojson') |>
   distinct() |>
   st_make_valid() |>
   # keep one polygon per RTS only
@@ -50,7 +50,7 @@ Presence Data
 #          filter(
 #            TrainClass == 'Positive' &
 #              (st_geometry_type(.) == 'POLYGON' | st_geometry_type(.) == 'MULTIPOLYGON'))
-#   ), 
+#   ),
 #   pca,
 #   fun = 'count'
 # )
@@ -60,7 +60,7 @@ Presence Data
 #          filter(
 #            TrainClass == 'Positive' &
 #              st_geometry_type(.) == 'POINT')
-#   ), 
+#   ),
 #   pca,
 #   fun = 'count'
 # )
@@ -132,7 +132,7 @@ Absence Data
 ```{r}
 # arts_neg_rast = rasterize(
 #   vect(arts %>%
-#          filter(TrainClass == 'Negative')), 
+#          filter(TrainClass == 'Negative')),
 #   pca
 # )
 # 
@@ -166,8 +166,8 @@ Combine Presence and Absence Data
 #   resp.name = 'rts'
 # )
 # 
-# saveRDS(arts_biomod, './sdm/arts_biomod_v.1.0.0.rds')
-arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.0.rds')
+# saveRDS(arts_biomod, './sdm/arts_biomod_v.1.0.1.rds')
+arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.1.rds')
 ```
 
 # Run Models
@@ -200,6 +200,8 @@ arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.0.rds')
 # )
 # 
 # print(Sys.time())
+# 
+# saveRDS(tuned.gbm, './sdm/tuned_parameters_v.1.0.1.rds')
 ```
 
 ```{r}
@@ -224,6 +226,7 @@ arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.0.rds')
 #   OPT.strategy = "user.defined",
 #   OPT.user = opt.t,
 #   metric.eval = c('TSS','ROC'),
+#   var.import = 3,
 #   seed.val = 42,
 #   nb.cpu = 19
 # )
@@ -233,10 +236,10 @@ arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.0.rds')
 
 ```{r}
 # saveRDS(rts_model,
-#         './sdm/rts_gbm_kfold_10_tuned.rds')
+#         './sdm/rts_gbm_kfold_10_tuned_v.1.0.1.rds')
 
 
-rts_model = readRDS('./sdm/rts_gbm_kfold_10_tuned.rds')
+rts_model = readRDS('./sdm/rts_gbm_kfold_10_tuned_v.1.0.1.rds')
 ```
 
 ```{r}
@@ -248,9 +251,9 @@ get_variables_importance(rts_model)
 bm_PlotEvalMean(bm.out = rts_model)
 bm_PlotEvalBoxplot(bm.out = rts_model, group.by = c('algo', 'algo'))
 bm_PlotEvalBoxplot(bm.out = rts_model, group.by = c('algo', 'run'))
-# bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'algo'))
-# bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'run'))
-# bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('algo', 'expl.var', 'run'))
+bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'algo'))
+bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'run'))
+bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('algo', 'expl.var', 'run'))
 
 # Represent response curves
 bm_PlotResponseCurves(bm.out = rts_model,
@@ -282,19 +285,19 @@ bm_PlotResponseCurves(bm.out = rts_model,
 # )
 # print(Sys.time())
 # # rts_pred
-# plot(rts_pred)
+# # plot(rts_pred)
 # 
 # rts_susceptibility = rast('./rts/proj_Current/proj_Current_rts.tif')
 ```
 
 ```{r}
 # saveRDS(rts_pred,
-#         './sdm/rts_gbm_kfold_10_pred_tuned.rds')
+#         './sdm/rts_gbm_kfold_10_pred_tuned_v.1.0.1.rds')
 
-rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred_tuned.rds')
+rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred_tuned_v.1.0.1.rds')
 
 # writeRaster(rts_susceptibility,
-#             './sdm/gbm_kfold_10_pred_tuned_combined.tif')
+#             './sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1.tif')
 
 rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined.tif')
 ```
@@ -307,7 +310,7 @@ ggplot() +
   scale_fill_viridis(na.value = 'transparent') +
   coord_sf(expand = FALSE)
 
-# ggsave('./figures/gbm_kfold_10_pred_tuned.jpg',
+# ggsave('./figures/gbm_kfold_10_pred_tuned_v.1.0.1.jpg',
 #        height = 5,
 #        width = 6.5)
 ```
@@ -345,6 +348,9 @@ levels(rts_susceptibility_class) = tibble(
                            'High (>90-95%)',
                            'Very High (>95%)')
 )
+
+writeRaster(rts_susceptibility_class,
+            './sdm/gbm_kfold_10_pred_tuned_combined_class.tif')
 ```
 
 ```{r, fig.height = 6, fig.width = 6.5}

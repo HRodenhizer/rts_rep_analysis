@@ -24,20 +24,6 @@ library(tidyverse)
 arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.0/ARTS_main_dataset.geojson') |>
   distinct() |>
   st_make_valid()
-
-# # the geometries aren't equal, but I can't see a difference in any of them...
-# duplicates = arts |>
-#   filter(UID == '62aaafe8-f268-5a20-8e3c-8d28afbb9807')
-# st_equals(duplicates[1,], duplicates[2,])
-# duplicates[[20]][[1]][[1]] == duplicates[[20]][[2]][[1]]
-# duplicates[[20]][[1]][[1]]
-# duplicates[[20]][[2]][[1]]
-
-# # temporary work around for duplicated row
-arts = arts |> 
-  mutate(count = n(), .by = CentroidLat:Notes) |>
-  filter(count == 1 & TrainClass == 'Positive') |>
-  select(-count)
 ```
 
 ```{r}
