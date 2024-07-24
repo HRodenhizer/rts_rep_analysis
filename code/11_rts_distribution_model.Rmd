@@ -243,25 +243,90 @@ rts_model = readRDS('./sdm/rts_gbm_kfold_10_tuned_v.1.0.1.rds')
 ```
 
 ```{r}
-# Get evaluation scores & variables importance
-get_evaluations(rts_model)
-get_variables_importance(rts_model)
+# Get evaluation scores & variable importance
+model_eval = tibble(rts_model@models.evaluation@val)
+model_eval_summary = model_eval |>
+  filter(full.name != 'rts_allData_allRun_GBM') |>
+  summarise(across(cutoff:validation,
+                   list(mean = mean, sd = sd),
+                   na.rm = TRUE),
+            .by = c(metric.eval)) |>
+  pivot_longer(cols = cutoff_mean:validation_sd) |>
+  separate_wider_delim(name, delim = '_', names = c('variable', 'metric')) |>
+  mutate(variable = factor(variable,
+                           levels = c('calibration',
+                                      'validation',
+                                      'cutoff',
+                                      'sensitivity',
+                                      'specificity'))) |>
+  arrange(variable, metric.eval) |>
+  pivot_wider(id_cols = 'metric', names_from = c(variable, metric.eval), values_from = value)
+model_eval_summary
+
+var_import = get_variables_importance(rts_model)
+var_import_summary = var_import %>%
+  filter(full.name == 'rts_allData_allRun_GBM') %>%
+  summarise(
+    across(var.imp,
+           list(mean = mean, sd = sd), 
+           na.rm = TRUE),
+    .by = expl.var
+    ) %>%
+  arrange(var.imp_mean) %>%
+  mutate(variable = factor(expl.var,
+                           levels = .$expl.var))
+
+ggplot(var_import_summary, aes(y = variable)) +
+  geom_col(aes(x = var.imp_mean)) +
+  geom_errorbarh(
+    aes(
+      xmin = var.imp_mean - var.imp_sd, 
+      xmax = var.imp_mean + var.imp_sd),
+    height = 0.25
+    ) +
+  scale_x_continuous(name = 'Variable Importance',
+                     expand = expansion(mult = c(0, 0.05))) +
+  scale_y_discrete(name = 'Variable')
 
 # Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = rts_model)
-bm_PlotEvalBoxplot(bm.out = rts_model, group.by = c('algo', 'algo'))
-bm_PlotEvalBoxplot(bm.out = rts_model, group.by = c('algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'algo'))
-bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('algo', 'expl.var', 'run'))
+# bm_PlotEvalMean(bm.out = rts_model)
+# bm_PlotEvalBoxplot(bm.out = rts_model, group.by = c('algo', 'algo'))
+# bm_PlotEvalBoxplot(bm.out = rts_model, group.by = c('algo', 'run'))
+# bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'algo'))
+# bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('expl.var', 'algo', 'run'))
+# bm_PlotVarImpBoxplot(bm.out = rts_model, group.by = c('algo', 'expl.var', 'run'))
 
 # Represent response curves
-bm_PlotResponseCurves(bm.out = rts_model,
+response_data = bm_PlotResponseCurves(bm.out = rts_model,
                       models.chosen = get_built_models(rts_model)[c(1:11)],
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = rts_model,
-                      models.chosen = get_built_models(rts_model)[c(1:11)],
-                      fixed.var = 'min')
+data_density = response_data[['plot']][['layers']][[2]][['data']]
+response_data = response_data[['tab']]
+
+response_data = response_data |>
+  mutate(
+    run = factor(str_split_i(pred.name, '_', 3),
+                 levels = c(paste0('RUN', seq(1,10)), 'allRun'))
+    ) |>
+  arrange(run)
+
+ggplot(response_data, 
+       aes(x = expl.val, y = pred.val, color = run, linewidth = run)) +
+  geom_line() +
+  scale_color_manual(values = c(rep('gray', 10), 'black')) +
+  scale_linewidth_manual(values = c(rep(0.2, 10), 0.5)) +
+  geom_rug(
+    data = data_density, 
+    aes(x = expl.val), 
+    linewidth = 0.2,
+    sides = 'b', 
+    inherit.aes = FALSE
+    ) +
+  scale_x_continuous(name = 'PC Score') +
+  scale_y_continuous(name = 'Response') +
+  facet_wrap(~ expl.name, scales = 'free_x') +
+  theme(legend.title = element_blank())
+
 bm_PlotResponseCurves(bm.out = rts_model,
                       models.chosen = get_built_models(rts_model)[11],
                       fixed.var = 'median',
@@ -349,8 +414,8 @@ levels(rts_susceptibility_class) = tibble(
                            'Very High (>95%)')
 )
 
-writeRaster(rts_susceptibility_class,
-            './sdm/gbm_kfold_10_pred_tuned_combined_class.tif')
+# writeRaster(rts_susceptibility_class,
+#             './sdm/gbm_kfold_10_pred_tuned_combined_class.tif')
 ```
 
 ```{r, fig.height = 6, fig.width = 6.5}
@@ -377,9 +442,9 @@ ggplot() +
         legend.justification = c(1, 0),
         legend.position.inside = c(0.998, 0.002))
 
-ggsave('./figures/rts_susceptibility.jpg',
-       height = 6,
-       width = 6.5)
+# ggsave('./figures/rts_susceptibility.jpg',
+#        height = 6,
+#        width = 6.5)
 
 # ggsave('./figures/rts_susceptibility_blue_red.jpg',
 #        height = 6,
