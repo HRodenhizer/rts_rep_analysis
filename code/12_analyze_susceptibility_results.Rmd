@@ -23,7 +23,7 @@ theme_set(theme_bw())
 # Load Data
 
 ```{r}
-rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined_class.tif')
+rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined_class_v.1.0.1.tif')
 rts_susceptibility_m = rast('../makopoulou_data/Susceptibility_Map.tif') |>
   project(rts_susceptibility, method = 'near')
 ```
@@ -114,9 +114,9 @@ ggplot() +
   coord_sf(expand = FALSE) +
   ggtitle('RTS Susceptibility Difference (Makopoulou - Woodwell)')
 
-ggsave('./figures/rts_susceptibility_diff.jpg',
-       height = 6,
-       width = 8)
+# ggsave('./figures/rts_susceptibility_diff.jpg',
+#        height = 6,
+#        width = 8)
 ```
 
 
@@ -158,6 +158,7 @@ ggplot() +
   ggtitle('RTS Susceptibility Difference (Makopoulou - Woodwell)')
 ```
 
+Taking a look at the top 3 predictors of RTS in our model
 ```{r}
 ggplot() +
   geom_sf(data = world) +
@@ -165,10 +166,44 @@ ggplot() +
     data = pca,
     r = 1,
     g = 2,
-    b = 3,
+    b = 5,
     max_col_value = 7
   ) +
+  # geom_sf(data = rts_susceptibility_diff_extremes_poly,
+  #         aes(color = susceptibility_class),
+  #         fill = 'transparent') +
   coord_sf(expand = FALSE) +
-  ggtitle('RGB Visualization of Principal Components 1, 2, and 3')
+  ggtitle('Principal Components 1, 2, and 5 as RGB')
+```
+
+```{r}
+rts_susceptibility_diff_df = as.data.frame(
+  rts_susceptibility_diff,
+  xy = TRUE
+) |>
+  filter(!is.na(Susceptibility_Map))
+
+pca_df = pca[[1:6]] |>
+  as.data.frame(
+    xy = TRUE
+  ) |>
+  filter(!is.na(PC1))
+
+rts_pca_df = rts_susceptibility_diff_df |>
+  left_join(pca_df,
+            by = c('x', 'y'))
+
+```
+
+```{r}
+rts_pca_df_subset = rts_pca_df |>
+  filter(abs(Susceptibility_Map) >= 3) |>
+  pivot_longer(PC1:PC6, names_to = 'pc', values_to = 'value')
+```
+
+```{r}
+ggplot(rts_pca_df_subset,
+       aes(x = pc, y = value, color = Susceptibility_Map)) +
+  geom_boxplot(position = position_dodge())
 ```
 
