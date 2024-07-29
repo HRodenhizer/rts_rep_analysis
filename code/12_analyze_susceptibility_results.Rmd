@@ -31,6 +31,7 @@ rts_susceptibility_m = rast('../makopoulou_data/Susceptibility_Map.tif') |>
 ```{r}
 arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.1/ARTS_main_dataset_v.1.0.1.geojson')
 pca = rast('./pca/pca.tif')
+pca_model = readRDS('./pca/pca.Rdata')
 ```
 
 ```{r}
@@ -159,6 +160,59 @@ ggplot() +
 ```
 
 Taking a look at the top 3 predictors of RTS in our model
+
+```{r}
+components = pca_model$rotation |>
+  as_tibble() |>
+  mutate(
+    variable = rownames(pca_model$rotation),
+    .before = PC1
+    ) |>
+  select(variable:PC6) |>
+  pivot_longer(PC1:PC6, names_to = 'pc', values_to = 'correlation') |>
+  arrange(pc, -abs(correlation))
+
+sd_factor = 1.5
+main_components = components |>
+  filter(correlation <= -1*sd_factor*sd(correlation) | correlation >= sd_factor*sd(correlation),
+         .by = pc) |>
+  mutate(order = seq(1:n()),
+         label = paste0(variable, ': ', round(correlation, 2)),
+         .by = pc) # |>
+  # pivot_wider(
+  #   id_cols = order, 
+  #   names_from = PC, 
+  #   values_from = c(variable, correlation),
+  #   names_vary = 'slowest',
+  #   names_glue = '{PC}_{.value}'
+  #   )
+```
+
+```{r}
+ggplot(components,
+       aes(x = correlation)) +
+  geom_vline(xintercept = 0,
+             color = 'gray50',
+             linetype = 'dashed') +
+  geom_histogram(bins = 30) +
+  geom_histogram(
+    data = main_components,
+    aes(x = correlation),
+    bins = 30,
+    inherit.aes = FALSE,
+    color = 'transparent',
+    fill = 'black'
+  ) +
+  # geom_text(
+  #   data = main_components,
+  #   aes(x = correlation, y = 2.5, label = variable),
+  #   angle = 90,
+  #   hjust = 0,
+  #   inherit.aes = FALSE
+  #   ) +
+  facet_wrap(~ pc, ncol = 2)
+```
+
 ```{r}
 ggplot() +
   geom_sf(data = world) +
@@ -177,33 +231,193 @@ ggplot() +
 ```
 
 ```{r}
-rts_susceptibility_diff_df = as.data.frame(
-  rts_susceptibility_diff,
+rts_susceptibility_diff_df = rts_susceptibility_diff |>
+  as.data.frame(
   xy = TRUE
 ) |>
-  filter(!is.na(Susceptibility_Map))
+  filter(!is.na(Susceptibility_Map)) |>
+  rename(susceptibility_diff = Susceptibility_Map) |>
+  mutate(
+    across(x:y,
+           ~ round(.x, 8)),
+    susceptibility_diff_class = factor(susceptibility_diff)
+    )
 
 pca_df = pca[[1:6]] |>
+  mask(rts_susceptibility_diff) |>
   as.data.frame(
     xy = TRUE
   ) |>
-  filter(!is.na(PC1))
+  filter(!is.na(PC1)) |>
+  mutate(
+    across(x:y,
+           ~ round(.x, 8))
+    )
 
 rts_pca_df = rts_susceptibility_diff_df |>
   left_join(pca_df,
-            by = c('x', 'y'))
-
-```
-
-```{r}
-rts_pca_df_subset = rts_pca_df |>
-  filter(abs(Susceptibility_Map) >= 3) |>
+            by = c('x', 'y')) |>
   pivot_longer(PC1:PC6, names_to = 'pc', values_to = 'value')
 ```
 
 ```{r}
-ggplot(rts_pca_df_subset,
-       aes(x = pc, y = value, color = Susceptibility_Map)) +
-  geom_boxplot(position = position_dodge())
+rts_pca_df_summary = rts_pca_df |>
+  summarize(
+    value_mean = mean(value, na.rm = TRUE),
+    value_median = median(value, na.rm = TRUE),
+    value_sd = sd(value, na.rm = TRUE),
+    .by = c(susceptibility_diff, susceptibility_diff_class, pc)
+  )
+```
+
+```{r}
+ggplot(
+  rts_pca_df,
+       aes(x = pc, 
+           y = value, 
+           color = susceptibility_diff_class, 
+           group = interaction(susceptibility_diff_class, pc))
+  ) +
+  geom_boxplot(position = position_dodge()) +
+  scale_y_continuous(name = 'PC Score') +
+  scale_color_viridis(name = 'RTS\nSusceptibility\nDifference',
+                      discrete = TRUE) +
+  theme(axis.title.x = element_blank())
+```
+
+```{r}
+min_lm = lm(
+  value_mean ~ 1,
+  data = rts_pca_df_summary
+)
+
+max_lm = lm(
+  value_mean ~ (susceptibility_diff + I(susceptibility_diff^2) + I(susceptibility_diff^3))*pc,
+  data = rts_pca_df_summary
+)
+
+rts_suscep_diff_summary_lm = step(
+  max_lm,
+  list(lower = min_lm, upper = max_lm)
+)
+summary(rts_suscep_diff_summary_lm)
+
+rts_suscep_diff_lm_params = emmeans::emmeans(
+  rts_suscep_diff_summary_lm,
+  ~ pc,
+  at = list(susceptibility_diff = 0)
+) |>
+  as_tibble() |>
+  rename(intercept = emmean) |>
+  rename_with(~ paste0('int_', .x),
+              .cols = SE:upper.CL) |>
+  full_join(
+    emmeans::emtrends(
+      rts_suscep_diff_summary_lm, 
+      ~ pc, 
+      var = "susceptibility_diff"
+    ) |>
+      as_tibble() |>
+      rename(slope = susceptibility_diff.trend) |>
+      rename_with(~ paste0('slope_', .x),
+                  .cols = SE:upper.CL)
+  ) |>
+  full_join(
+    emmeans::emtrends(
+      rts_suscep_diff_summary_lm, 
+      ~ pc, 
+      var = "I(susceptibility_diff^2)"
+    ) |>
+      as_tibble() |>
+      rename(quadratic_term = `I(susceptibility_diff^2).trend`) |>
+      rename_with(~ paste0('quadratic_', .x),
+                  .cols = SE:upper.CL)
+  ) |>
+  full_join(
+    emmeans::emtrends(
+      rts_suscep_diff_summary_lm, 
+      ~ pc, 
+      var = "I(susceptibility_diff^3)"
+    ) |>
+      as_tibble() |>
+      rename(cubic_term = `I(susceptibility_diff^3).trend`) |>
+      rename_with(~ paste0('cubic_', .x),
+                  .cols = SE:upper.CL)
+  )
+```
+
+The Makopoulou model tends to predict higher RTS Susceptibility with low PC1, PC3, and PC4 values and high PC2 and PC5 values. In terms of input variables this means that the Makopoulou model has higher RTS Susceptibility when:
+- precip sum, max, MAGT, runoff sum, and ALT are larger (PC1) - Marine influenced areas
+- temp seasonality, tmax, srad sum, and LST are lower; and tmin and runoff max are higher (PC2) - Marine influenced areas
+- the trend in soil moisture and LST over time are lower (PC5) - Less climate change related increase in precip/temperature
+- the trend in precip, precip max, and runoff over time are higher; and silt values are higher (PC3)
+- the trend in runoff and tmax over time are higher; silt and MAGT are lower; and soil moisture and said are higher
+
+```{r, fig.height = 6, fig.width = 6.5}
+labels = tibble(
+      pc = paste0('PC', c(seq(1, 6), 6)),
+      x = c(rep(NA, 5), -0.25, 0.25),
+      hjust = c(rep(NA, 5), 1, 0),
+      xend = c(rep(NA, 5), -1.5, 1.5),
+      y = c(rep(NA, 5), -8, -8),
+      label = c(rep(NA, 5), 'Woodwell Greater', 'Makopoulou Greater'),
+      yarrow = c(rep(NA, 5), -7, -7),
+      )
+
+ggplot(
+  rts_pca_df_summary,
+       aes(x = susceptibility_diff, 
+           y = value_mean)
+  ) +
+  geom_vline(xintercept = 0,
+             color = 'gray50',
+             linetype = 'dashed') +
+  # geom_point(
+  #   aes(y = value_median),
+  #   size = 2,
+  #   color = 'red'
+  #   ) +
+  geom_point(size = 2) +
+  geom_errorbar(
+    aes(ymin = value_mean - value_sd, ymax = value_mean + value_sd)
+    ) +
+  geom_smooth(
+    method = 'lm', 
+    formula = y ~ (x + I(x^2) + I(x^3)),
+    color = 'black',
+    linewidth = 0.5
+    ) +
+  # geom_smooth(
+  #   method = 'gam', 
+  #   linewidth = 0.5
+  #   ) +
+  geom_text(
+    data = labels,
+    aes(x = x, y = y, label = label, hjust = hjust),
+    size = 2.5
+  ) +
+  geom_segment(
+    data = labels,
+    aes(x = x, xend = xend, y = yarrow, yend = yarrow),
+    arrow = arrow(length = unit(0.05, 'inches'))
+    ) +
+  geom_text(
+    data = main_components,
+    aes(x = -4.5, y = -3.5 - order*0.75, label = label),
+    hjust = 0,
+    vjust = 0,
+    size = 2.5
+  ) +
+  scale_x_continuous(
+    name = 'RTS Susceptibility Difference\n(Makopoulou-Woodwell)',
+    breaks = seq(-4, 4, by = 2),
+    ) +
+  scale_y_continuous(name = 'PC Score') +
+  facet_wrap(~ pc, ncol = 3) +
+  ggtitle('PC Scores by Mean RTS Susceptibility Difference\nWith Cubic Linear Models')
+
+# ggsave('./figures/rts_susceptibility_diff_models.jpg',
+#        height = 6,
+#        width = 6.5)
 ```
 
