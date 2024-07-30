@@ -61,7 +61,7 @@ world = world |>
 ```
 
 
-# Difference Map
+# Difference in RTS Susceptibility
 
 ```{r}
 rts_susceptibility_diff = rts_susceptibility_m - rts_susceptibility
@@ -120,46 +120,7 @@ ggplot() +
 #        width = 8)
 ```
 
-
-## Explore Regions of Highest Divergence
-
-```{r}
-rts_susceptibility_diff_extremes = rts_susceptibility_diff |>
-  classify(
-  rcl = matrix(
-    c(-6, -2.5, -1,
-      -2.5, 2.5, NA,
-      2.5, 6, 1),
-  ncol = 3,
-  byrow = TRUE
-  )
-)
-
-levels(rts_susceptibility_diff_extremes) = tibble(
-  id = c(-1, 1),
-  susceptibility_class = c('<= -3',
-                           '>= 3')
-)
-```
-
-```{r}
-ggplot() +
-  geom_sf(data = world) +
-  geom_spatraster(
-    data = rts_susceptibility_diff_extremes,
-    maxcell = 1e+07
-  ) +
-  scale_fill_manual(
-    name = 'Difference',
-    values = c('#0066CC', '#990000'),
-    na.value = 'transparent',
-    na.translate = FALSE
-  ) +
-  coord_sf(expand = FALSE) +
-  ggtitle('RTS Susceptibility Difference (Makopoulou - Woodwell)')
-```
-
-Taking a look at the top 3 predictors of RTS in our model
+## Extract Underlying Variables for Principal Components
 
 ```{r}
 components = pca_model$rotation |>
@@ -213,22 +174,7 @@ ggplot(components,
   facet_wrap(~ pc, ncol = 2)
 ```
 
-```{r}
-ggplot() +
-  geom_sf(data = world) +
-  geom_spatraster_rgb(
-    data = pca,
-    r = 1,
-    g = 2,
-    b = 5,
-    max_col_value = 7
-  ) +
-  # geom_sf(data = rts_susceptibility_diff_extremes_poly,
-  #         aes(color = susceptibility_class),
-  #         fill = 'transparent') +
-  coord_sf(expand = FALSE) +
-  ggtitle('Principal Components 1, 2, and 5 as RGB')
-```
+## Model PC Scores Relative to RTS Susceptibility Difference
 
 ```{r}
 rts_susceptibility_diff_df = rts_susceptibility_diff |>
@@ -419,5 +365,24 @@ ggplot(
 # ggsave('./figures/rts_susceptibility_diff_models.jpg',
 #        height = 6,
 #        width = 6.5)
+```
+
+## Map Top Predictors of RTS in Our Model
+
+```{r}
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster_rgb(
+    data = pca,
+    r = 1,
+    g = 2,
+    b = 5,
+    max_col_value = 7
+  ) +
+  # geom_sf(data = rts_susceptibility_diff_extremes_poly,
+  #         aes(color = susceptibility_class),
+  #         fill = 'transparent') +
+  coord_sf(expand = FALSE) +
+  ggtitle('Principal Components 1, 2, and 5 as RGB')
 ```
 
