@@ -384,5 +384,9 @@ ggplot() +
   #         fill = 'transparent') +
   coord_sf(expand = FALSE) +
   ggtitle('Principal Components 1, 2, and 5 as RGB')
+
+# ggsave('./figures/top_predictors_rgb.jpg',
+#        height = 6.5,
+#        width = 6.5)
 ```
 
