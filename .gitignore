@@ -6,6 +6,7 @@ pca/
 euclidean_distance/
 rts/
 sdm/
+data_gaps/
 *.mp4
 
 # History files
