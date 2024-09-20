@@ -1,6 +1,7 @@
 # input data (many files are too big)
 input_data/
 figures/
+tables/
 kmeans/
 pca/
 euclidean_distance/
@@ -8,6 +9,7 @@ rts/
 sdm/
 data_gaps/
 *.mp4
+*.qgz
 
 # History files
 .Rhistory
