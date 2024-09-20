@@ -147,6 +147,15 @@ main_components = components |>
   #   names_vary = 'slowest',
   #   names_glue = '{PC}_{.value}'
   #   )
+
+# write_csv(
+#   components,
+#   './tables/pc_variable_correlations.csv'
+# )
+# write_csv(
+#   main_components,
+#   './tables/pc_main_components.csv'
+# )
 ```
 
 ```{r}
