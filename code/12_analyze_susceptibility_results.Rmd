@@ -34,7 +34,11 @@ rts_prob_m = rts_prob_m/10
 ```
 
 ```{r}
-arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.1/ARTS_main_dataset_v.1.0.1.geojson')
+arts = st_read(
+  '../ARTS/ARTS_main_dataset/v.1.0.1/ARTS_main_dataset_v.1.0.1.geojson'
+  ) |>
+  st_make_valid()
+arts_grid = read_csv('./sdm/arts_grid.csv')
 pca = rast('./pca/pca.tif')
 pca_model = readRDS('./pca/pca.Rdata')
 ```
@@ -51,22 +55,22 @@ m_env = c(
 ```
 
 ```{r}
-files = list.files(
-  '../makopoulou_data/RTS_presences_not_in_ARTS',
-  full.names = TRUE,
-  recursive = TRUE,
-  pattern = '\\.shp$'
-)
-files = files[which(!str_detect(files, 'Couture.+((MVLSD)|(ald))'))]
-rts_not_in_arts = map_dfr(
-  files,
-  ~ .x |>
-    st_read() |>
-    select(geometry) |>
-    mutate(source = str_split_i(.x, '/', i = -1)) |>
-    st_transform(crs = 3413)
-) |>
-  st_as_sf()
+# files = list.files(
+#   '../makopoulou_data/RTS_presences_not_in_ARTS',
+#   full.names = TRUE,
+#   recursive = TRUE,
+#   pattern = '\\.shp$'
+# )
+# files = files[which(!str_detect(files, 'Couture.+((MVLSD)|(ald))'))]
+# rts_not_in_arts = map_dfr(
+#   files,
+#   ~ .x |>
+#     st_read() |>
+#     select(geometry) |>
+#     mutate(source = str_split_i(.x, '/', i = -1)) |>
+#     st_transform(crs = 3413)
+# ) |>
+#   st_as_sf()
 
 mrts = st_read('../makopoulou_data/makopoulou_data_download_20240916/rts_presences/RTSs_abs_pres.shp') |>
   st_transform(crs = 3413)
@@ -80,43 +84,96 @@ world = world |>
 ```
 
 
-# Difference in RTS Susceptibility
+# Difference in RTS Probability
 
 ```{r}
 rts_susceptibility_diff = rts_susceptibility_m - rts_susceptibility
 rts_prob_diff = rts_prob_m - rts_prob
 ```
 
+## Prep RTS Points for Comparison
+
 ```{r}
-# arts_points = arts %>%
-#    filter(CentroidLat == first(CentroidLat),
-#          .by = UID) %>%
-#   st_centroid(.)
+# # RTS
+# mrts_rast = rasterizeGeom(
+#   vect(mrts |>
+#          filter(Bin == 1)),
+#   pca,
+#   fun = 'count'
+# )
 # 
-# marts_merge_1 = arts_points |>
-#   st_join(mrts, join = st_is_within_distance, dist = 10, left = TRUE)
+# mrts_rast = mrts_rast |>
+#   classify(matrix(c(0, NA), ncol = 2))
 # 
-# marts_merge_2 = mrts |>
-#   st_join(arts, join = st_is_within_distance, dist = 10, left = TRUE)
+# # Convert to data frame
+# mrts_grid = mrts_rast |>
+#   as.data.frame(xy = TRUE, na.rm = TRUE) |>
+#   rename(count = lyr1) |>
+#   mutate(rts = case_when(count >= 1 ~ 1,
+#                            count == 0 ~ 0))
 # 
-# marts_merge = marts_merge_1 |>
-#   bind_rows(marts_merge_2) |>
-#   distinct() |>
-#   mutate(
-#     TrainClassMakopoulou = case_when(
-#       Bin == 0 ~ 'Negative',
-#       Bin == 1 ~ 'Positive',
-#       is.na(Bin) ~ NA
-#     ),
-#     dataset = case_when(
-#       !is.na(TrainClass) & !is.na(TrainClassMakopoulou) ~ 'Both',
-#       !is.na(TrainClass) & is.na(TrainClassMakopoulou) ~ 'ARTS',
-#       is.na(TrainClass) & !is.na(TrainClassMakopoulou) ~ 'Makopoulou'
-#     )
-#   )
+# # RTS Absences
+# mrts_neg_rast = rasterize(
+#   vect(mrts %>%
+#          filter(Bin == 0)),
+#   pca
+# )
 # 
-# st_write(marts_merge, './arts_makopoulou_merge/arts_makopoulou_merge.geojson')
-marts_merge = st_read('./arts_makopoulou_merge/arts_makopoulou_merge.geojson')
+# mrts_neg_rast = mrts_neg_rast |>
+#   classify(matrix(c(1, 0), ncol = 2, byrow = TRUE))
+# 
+# # Make sure that negative 1 km cells don't have any observed RTS in them outside of the negative bounding box
+# mrts_neg_rast[mrts_neg_rast == 0 & !is.na(mrts_rast)] = NA
+# 
+# # Convert to data frame
+# mrts_neg_grid = mrts_neg_rast |>
+#   as.data.frame(xy = TRUE, na.rm = TRUE) |>
+#   rename(count = last) |>
+#   mutate(rts = count)
+# 
+# mrts_grid = mrts_grid |>
+#   bind_rows(mrts_neg_grid)
+# 
+# rm(mrts_rast, mrts_neg_rast)
+# 
+# write_csv(mrts_grid, './arts_makopoulou_merge/mrts_grid.csv')
+
+mrts_grid = read_csv('./arts_makopoulou_merge/mrts_grid.csv')
+```
+
+```{r}
+arts_grid = arts_grid |>
+  st_as_sf(coords = c('x', 'y'), crs = 3413)
+
+mrts_grid = mrts_grid |>
+  st_as_sf(coords = c('x', 'y'), crs = 3413)
+
+arts_mrts_merge = arts_grid |>
+  select(-count, arts = rts) |>
+  st_join(mrts_grid |>
+            select(-count, mrts = rts)) |>
+  bind_rows(
+    mrts_grid |>
+      select(-count, mrts = rts) |>
+      st_join(arts_grid |>
+                select(-count, arts = rts))
+  ) |>
+  distinct() |>
+  mutate(
+    disagree = case_when(
+      arts == 1 & mrts == 0 ~ TRUE,
+      arts == 0 & mrts == 1 ~ TRUE,
+      TRUE ~ FALSE
+    ),
+    
+  )
+
+ggplot() + 
+  geom_sf(data = world) +
+  geom_sf(
+    data = arts_mrts_merge |> filter(disagree == TRUE),
+    aes(color = arts)
+  )
 ```
 
 ## Map Difference

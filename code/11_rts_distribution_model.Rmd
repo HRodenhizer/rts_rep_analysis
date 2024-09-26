@@ -154,6 +154,11 @@ Combine Presence and Absence Data
 ```{r}
 # arts_grid = arts_grid |>
 #   bind_rows(arts_neg_grid)
+# 
+# write_csv(
+#   arts_grid,
+#   './sdm/arts_grid.csv'
+# )
 ```
 
 # Format Data for SDM
