@@ -26,12 +26,28 @@ theme_set(theme_bw())
 rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined_class_v.1.0.1.tif')
 rts_susceptibility_m = rast('../makopoulou_data/Susceptibility_Map.tif') |>
   project(rts_susceptibility, method = 'near')
+rts_prob = rast('./sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1.tif')
+rts_prob = median(rts_prob[[1:10]]/10)
+rts_prob_m = rast('../makopoulou_data/makopoulou_data_download_20240916/GBM/gbm_aver_raster_calc_10_runs.tif') |>
+  project(rts_prob, method = 'near')
+rts_prob_m = rts_prob_m/10
 ```
 
 ```{r}
 arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.1/ARTS_main_dataset_v.1.0.1.geojson')
 pca = rast('./pca/pca.tif')
 pca_model = readRDS('./pca/pca.Rdata')
+```
+
+```{r}
+m_env = c(
+  rast('../makopoulou_data/makopoulou_data_download_20240916/rts_var/bd.tif'),
+  rast('../makopoulou_data/makopoulou_data_download_20240916/rts_var/fdd.tif'),
+  rast('../makopoulou_data/makopoulou_data_download_20240916/rts_var/fine.tif'),
+  rast('../makopoulou_data/makopoulou_data_download_20240916/rts_var/rainfall.tif'),
+  rast('../makopoulou_data/makopoulou_data_download_20240916/rts_var/slop90_geom_A.tif'),
+  rast('../makopoulou_data/makopoulou_data_download_20240916/rts_var/tdd.tif')
+)
 ```
 
 ```{r}
@@ -51,6 +67,9 @@ rts_not_in_arts = map_dfr(
     st_transform(crs = 3413)
 ) |>
   st_as_sf()
+
+mrts = st_read('../makopoulou_data/makopoulou_data_download_20240916/rts_presences/RTSs_abs_pres.shp') |>
+  st_transform(crs = 3413)
 ```
 
 ```{r}
@@ -65,11 +84,67 @@ world = world |>
 
 ```{r}
 rts_susceptibility_diff = rts_susceptibility_m - rts_susceptibility
+rts_prob_diff = rts_prob_m - rts_prob
+```
+
+```{r}
+# arts_points = arts %>%
+#    filter(CentroidLat == first(CentroidLat),
+#          .by = UID) %>%
+#   st_centroid(.)
+# 
+# marts_merge_1 = arts_points |>
+#   st_join(mrts, join = st_is_within_distance, dist = 10, left = TRUE)
+# 
+# marts_merge_2 = mrts |>
+#   st_join(arts, join = st_is_within_distance, dist = 10, left = TRUE)
+# 
+# marts_merge = marts_merge_1 |>
+#   bind_rows(marts_merge_2) |>
+#   distinct() |>
+#   mutate(
+#     TrainClassMakopoulou = case_when(
+#       Bin == 0 ~ 'Negative',
+#       Bin == 1 ~ 'Positive',
+#       is.na(Bin) ~ NA
+#     ),
+#     dataset = case_when(
+#       !is.na(TrainClass) & !is.na(TrainClassMakopoulou) ~ 'Both',
+#       !is.na(TrainClass) & is.na(TrainClassMakopoulou) ~ 'ARTS',
+#       is.na(TrainClass) & !is.na(TrainClassMakopoulou) ~ 'Makopoulou'
+#     )
+#   )
+# 
+# st_write(marts_merge, './arts_makopoulou_merge/arts_makopoulou_merge.geojson')
+marts_merge = st_read('./arts_makopoulou_merge/arts_makopoulou_merge.geojson')
 ```
 
 ## Map Difference
 
-```{r}
+```{r, fig.height = 6, fig.width = 6}
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(
+    data = rts_prob_diff,
+    maxcell = 1e+07
+  ) +
+  scale_fill_gradient2(
+    name = expression(Delta~' RTS Probability'),
+    limits = c(-100, 100),
+    low = '#0066CC',
+    mid = '#FFFFDD',
+    high = '#990000',
+    na.value = 'transparent'
+  ) +
+  coord_sf(expand = FALSE) +
+  ggtitle('RTS Probability Difference (Makopoulou - Woodwell)') +
+  theme(legend.position = 'inside',
+        legend.justification = c(1, 0),
+        legend.position.inside = c(0.999, 0.001))
+# ggsave('./figures/rts_prob_diff.jpg',
+#        height = 6,
+#        width = 6)
+
 ggplot() +
   geom_sf(data = world) +
   geom_spatraster(
@@ -92,28 +167,28 @@ ggplot() +
 ggplot() +
   geom_sf(data = world) +
   geom_spatraster(
-    data = rts_susceptibility_diff,
-    maxcell = 1e+07
+    data = rts_prob_diff,
+    # maxcell = 1e+07
   ) +
   scale_fill_gradient2(
-    name = expression(Delta~' RTS Susceptibility'),
-    limits = c(-5, 5),
+    name = expression(Delta~' RTS Probability'),
+    limits = c(-100, 100),
     low = '#0066CC',
     mid = '#FFFFDD',
     high = '#990000',
     na.value = 'transparent'
   ) +
   geom_sf(
-    data = rts_not_in_arts, 
-    aes(color = ''), 
-    size = 0.3
+    data = marts_merge, 
+    aes(color = dataset), 
+    size = 0.1
     ) +
-  scale_color_manual(
-    name = 'RTS Not in ARTS',
-    values = c('black')
-    ) +
+  # scale_color_manual(
+  #   name = 'RTS Not in ARTS',
+  #   values = c('black')
+  #   ) +
   coord_sf(expand = FALSE) +
-  ggtitle('RTS Susceptibility Difference (Makopoulou - Woodwell)')
+  ggtitle('RTS Probability Difference (Makopoulou - Woodwell)')
 
 # ggsave('./figures/rts_susceptibility_diff.jpg',
 #        height = 6,
@@ -183,23 +258,24 @@ ggplot(components,
   facet_wrap(~ pc, ncol = 2)
 ```
 
-## Model PC Scores Relative to RTS Susceptibility Difference
+## Model PC Scores Relative to RTS Probability Difference
 
 ```{r}
-rts_susceptibility_diff_df = rts_susceptibility_diff |>
+rts_prob_diff_df = rts_prob_diff |>
   as.data.frame(
   xy = TRUE
 ) |>
-  filter(!is.na(Susceptibility_Map)) |>
-  rename(susceptibility_diff = Susceptibility_Map) |>
+  filter(!is.na(gbm_1_extr)) |>
+  rename(prob_diff = gbm_1_extr) |>
   mutate(
     across(x:y,
            ~ round(.x, 8)),
-    susceptibility_diff_class = factor(susceptibility_diff)
+    prob_diff_round = round(prob_diff/10, 0)*10,
+    prob_diff_class = factor(prob_diff_round)
     )
 
 pca_df = pca[[1:6]] |>
-  mask(rts_susceptibility_diff) |>
+  mask(rts_prob_diff) |>
   as.data.frame(
     xy = TRUE
   ) |>
@@ -209,7 +285,7 @@ pca_df = pca[[1:6]] |>
            ~ round(.x, 8))
     )
 
-rts_pca_df = rts_susceptibility_diff_df |>
+rts_pca_df = rts_prob_diff_df |>
   left_join(pca_df,
             by = c('x', 'y')) |>
   pivot_longer(PC1:PC6, names_to = 'pc', values_to = 'value')
@@ -221,7 +297,7 @@ rts_pca_df_summary = rts_pca_df |>
     value_mean = mean(value, na.rm = TRUE),
     value_median = median(value, na.rm = TRUE),
     value_sd = sd(value, na.rm = TRUE),
-    .by = c(susceptibility_diff, susceptibility_diff_class, pc)
+    .by = c(prob_diff_round, prob_diff_class, pc)
   )
 ```
 
@@ -230,12 +306,12 @@ ggplot(
   rts_pca_df,
        aes(x = pc, 
            y = value, 
-           color = susceptibility_diff_class, 
-           group = interaction(susceptibility_diff_class, pc))
+           color = prob_diff_class, 
+           group = interaction(prob_diff_class, pc))
   ) +
   geom_boxplot(position = position_dodge()) +
   scale_y_continuous(name = 'PC Score') +
-  scale_color_viridis(name = 'RTS\nSusceptibility\nDifference',
+  scale_color_viridis(name = 'RTS\nProbability\nDifference',
                       discrete = TRUE) +
   theme(axis.title.x = element_blank())
 ```
@@ -247,7 +323,7 @@ min_lm = lm(
 )
 
 max_lm = lm(
-  value_mean ~ (susceptibility_diff + I(susceptibility_diff^2) + I(susceptibility_diff^3))*pc,
+  value_mean ~ (prob_diff_round + I(prob_diff_round^2) + I(prob_diff_round^3))*pc,
   data = rts_pca_df_summary
 )
 
@@ -260,7 +336,7 @@ summary(rts_suscep_diff_summary_lm)
 rts_suscep_diff_lm_params = emmeans::emmeans(
   rts_suscep_diff_summary_lm,
   ~ pc,
-  at = list(susceptibility_diff = 0)
+  at = list(prob_diff_round = 0)
 ) |>
   as_tibble() |>
   rename(intercept = emmean) |>
@@ -270,10 +346,10 @@ rts_suscep_diff_lm_params = emmeans::emmeans(
     emmeans::emtrends(
       rts_suscep_diff_summary_lm, 
       ~ pc, 
-      var = "susceptibility_diff"
+      var = "prob_diff_round"
     ) |>
       as_tibble() |>
-      rename(slope = susceptibility_diff.trend) |>
+      rename(slope = prob_diff_round.trend) |>
       rename_with(~ paste0('slope_', .x),
                   .cols = SE:upper.CL)
   ) |>
@@ -281,10 +357,10 @@ rts_suscep_diff_lm_params = emmeans::emmeans(
     emmeans::emtrends(
       rts_suscep_diff_summary_lm, 
       ~ pc, 
-      var = "I(susceptibility_diff^2)"
+      var = "I(prob_diff_round^2)"
     ) |>
       as_tibble() |>
-      rename(quadratic_term = `I(susceptibility_diff^2).trend`) |>
+      rename(quadratic_term = `I(prob_diff_round^2).trend`) |>
       rename_with(~ paste0('quadratic_', .x),
                   .cols = SE:upper.CL)
   ) |>
@@ -292,10 +368,10 @@ rts_suscep_diff_lm_params = emmeans::emmeans(
     emmeans::emtrends(
       rts_suscep_diff_summary_lm, 
       ~ pc, 
-      var = "I(susceptibility_diff^3)"
+      var = "I(prob_diff_round^3)"
     ) |>
       as_tibble() |>
-      rename(cubic_term = `I(susceptibility_diff^3).trend`) |>
+      rename(cubic_term = `I(prob_diff_round^3).trend`) |>
       rename_with(~ paste0('cubic_', .x),
                   .cols = SE:upper.CL)
   )
@@ -311,9 +387,9 @@ The Makopoulou model tends to predict higher RTS Susceptibility with low PC1, PC
 ```{r, fig.height = 6, fig.width = 6.5}
 labels = tibble(
       pc = paste0('PC', c(seq(1, 6), 6)),
-      x = c(rep(NA, 5), -0.25, 0.25),
+      x = c(rep(NA, 5), -5, 5),
       hjust = c(rep(NA, 5), 1, 0),
-      xend = c(rep(NA, 5), -1.5, 1.5),
+      xend = c(rep(NA, 5), -40, 40),
       y = c(rep(NA, 5), -8, -8),
       label = c(rep(NA, 5), 'Woodwell Greater', 'Makopoulou Greater'),
       yarrow = c(rep(NA, 5), -7, -7),
@@ -321,7 +397,7 @@ labels = tibble(
 
 ggplot(
   rts_pca_df_summary,
-       aes(x = susceptibility_diff, 
+       aes(x = prob_diff_round, 
            y = value_mean)
   ) +
   geom_vline(xintercept = 0,
@@ -332,7 +408,7 @@ ggplot(
   #   size = 2,
   #   color = 'red'
   #   ) +
-  geom_point(size = 2) +
+  geom_point(size = 0.5) +
   geom_errorbar(
     aes(ymin = value_mean - value_sd, ymax = value_mean + value_sd)
     ) +
@@ -358,22 +434,110 @@ ggplot(
     ) +
   geom_text(
     data = main_components,
-    aes(x = -4.5, y = -3.5 - order*0.75, label = label),
+    aes(x = -100, y = -3.5 - order*0.75, label = label),
     hjust = 0,
     vjust = 0,
     size = 2.5
   ) +
   scale_x_continuous(
-    name = 'RTS Susceptibility Difference\n(Makopoulou-Woodwell)',
-    breaks = seq(-4, 4, by = 2),
+    name = 'RTS Probability Difference\n(Makopoulou-Woodwell)',
+    # breaks = seq(-4, 4, by = 2),
     ) +
   scale_y_continuous(name = 'PC Score') +
   facet_wrap(~ pc, ncol = 3) +
-  ggtitle('PC Scores by Mean RTS Susceptibility Difference\nWith Cubic Linear Models')
+  ggtitle('PC Scores by Mean RTS Probability Difference\nWith Cubic Linear Models')
 
-# ggsave('./figures/rts_susceptibility_diff_models.jpg',
+# ggsave('./figures/rts_prob_diff_models.jpg',
 #        height = 6,
 #        width = 6.5)
+```
+
+## Model Environmental Variables Relative to RTS Probability Difference
+
+```{r}
+m_env_df = m_env[[1:6]] |>
+  project(rts_prob_diff) |>
+  mask(rts_prob_diff) |>
+  as.data.frame(
+    xy = TRUE
+  ) |>
+  filter(!is.na(bd) & !is.na(fdd) & !is.na(fine) & !is.na(rainfall) & !is.na(slop90_geom_A) & !is.na(tdd)) |>
+  mutate(
+    across(x:y,
+           ~ round(.x, 8)),
+    across(bd:tdd, 
+           ~ (.x - mean(.x, na.rm = TRUE))/sd(.x))
+    )
+
+rts_m_env_df = rts_prob_diff_df |>
+  left_join(m_env_df,
+            by = c('x', 'y')) |>
+  pivot_longer(bd:tdd, names_to = 'variable', values_to = 'value')
+```
+
+```{r}
+rts_m_env_df_summary = rts_m_env_df |>
+  summarize(
+    value_mean = mean(value, na.rm = TRUE),
+    value_median = median(value, na.rm = TRUE),
+    value_sd = sd(value, na.rm = TRUE),
+    .by = c(prob_diff_round, prob_diff_class, variable)
+  )
+```
+
+```{r}
+ggplot(
+  rts_m_env_df_summary,
+       aes(x = prob_diff_round, 
+           y = value_mean)
+  ) +
+  geom_vline(xintercept = 0,
+             color = 'gray50',
+             linetype = 'dashed') +
+  # geom_point(
+  #   aes(y = value_median),
+  #   size = 2,
+  #   color = 'red'
+  #   ) +
+  geom_point(size = 0.5) +
+  geom_errorbar(
+    aes(ymin = value_mean - value_sd, ymax = value_mean + value_sd)
+    ) +
+  geom_smooth(
+    method = 'lm', 
+    formula = y ~ (x + I(x^2) + I(x^3)),
+    color = 'black',
+    linewidth = 0.5
+    ) +
+  # geom_text(
+  #   data = labels,
+  #   aes(x = x, y = y, label = label, hjust = hjust),
+  #   size = 2.5
+  # ) +
+  # geom_segment(
+  #   data = labels,
+  #   aes(x = x, xend = xend, y = yarrow, yend = yarrow),
+  #   arrow = arrow(length = unit(0.05, 'inches'))
+  #   ) +
+  # geom_text(
+  #   data = main_components,
+  #   aes(x = -100, y = -3.5 - order*0.75, label = label),
+  #   hjust = 0,
+  #   vjust = 0,
+  #   size = 2.5
+  # ) +
+  scale_x_continuous(
+    name = 'RTS Probability Difference\n(Makopoulou-Woodwell)',
+    # breaks = seq(-4, 4, by = 2),
+    ) +
+  scale_y_continuous(name = 'Environmental Variable Z-Score') +
+  facet_wrap(~ variable, ncol = 3) +
+  ggtitle('Environmental Variable Scores by Mean RTS Probability Difference\nWith Cubic Linear Models')
+
+# ggsave('./figures/rts_prob_diff_models_makopoulou.jpg',
+#        height = 6,
+#        width = 6.5)
+
 ```
 
 ## Map Top Predictors of RTS in Our Model
