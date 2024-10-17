@@ -132,7 +132,8 @@ Absence Data
 ```{r}
 # arts_neg_rast = rasterize(
 #   vect(arts %>%
-#          filter(TrainClass == 'Negative')),
+#          filter(TrainClass == 'Negative') %>%
+#          st_centroid()),
 #   pca
 # )
 # 
@@ -145,7 +146,7 @@ Absence Data
 # # Convert to data frame
 # arts_neg_grid = arts_neg_rast |>
 #   as.data.frame(xy = TRUE, na.rm = TRUE) |>
-#   rename(count = layer) |>
+#   rename(count = last) |>
 #   mutate(rts = count)
 ```
 
@@ -159,6 +160,7 @@ Combine Presence and Absence Data
 #   arts_grid,
 #   './sdm/arts_grid.csv'
 # )
+arts_grid = read_csv('./sdm/arts_grid.csv')
 ```
 
 # Format Data for SDM
@@ -378,8 +380,7 @@ bm_PlotResponseCurves(bm.out = rts_model,
 #   # models.chosen = 'rts_allData_allRun_GBM',
 #   metric.binary = 'all',
 #   metric.filter = 'all',
-#   build.clamping.mask = TRUE,
-#   nb.cpu = 19
+#   build.clamping.mask = TRUE
 # )
 # print(Sys.time())
 # # # rts_pred
@@ -399,6 +400,9 @@ rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred_tuned_v.1.0.1.rds')
 
 rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1.tif')
 rts_probability_median = median(rts_susceptibility[[1:10]]/10)
+
+# writeRaster(rts_probability_median,
+#             './sdm/gbm_kfold_10_pred_tuned_median_v.1.0.1.tif')
 ```
 
 ```{r}
@@ -412,6 +416,34 @@ ggplot() +
   coord_sf(expand = FALSE)
 
 # ggsave('./figures/rts_probability_median.jpg',
+#        height = 5,
+#        width = 6.5)
+
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(data = rts_probability_median,
+                  # maxcell = 1e+07
+                  ) +
+  scale_fill_viridis(name = 'RTS Probability\n(%)',
+                     limits = c(0, 100),
+                     na.value = 'transparent') +
+  geom_sf(data = arts |>
+            filter(TrainClass == 'Positive'),
+          color = 'black',
+          fill = 'black',
+          size = 0.5,
+          linewidth = 1) +
+  coord_sf(
+    expand = FALSE,
+    # xlim = c(-1800000, -1750000),
+    # ylim = c(-600000, -550000)
+  )
+
+# bug makes the fill not line up with the outline when saving to jpg
+# ggsave('./figures/rts_probability_median_w_arts.jpg',
+#        height = 5,
+#        width = 6.5)
+# ggsave('./figures/rts_probability_median_w_arts.pdf',
 #        height = 5,
 #        width = 6.5)
 ```

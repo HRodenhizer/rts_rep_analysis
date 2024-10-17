@@ -142,39 +142,91 @@ mrts_grid = read_csv('./arts_makopoulou_merge/mrts_grid.csv')
 ```
 
 ```{r}
-arts_grid = arts_grid |>
-  st_as_sf(coords = c('x', 'y'), crs = 3413)
+# arts_grid = arts_grid |>
+#   st_as_sf(coords = c('x', 'y'), crs = 3413)
+# 
+# mrts_grid = mrts_grid |>
+#   st_as_sf(coords = c('x', 'y'), crs = 3413)
+# 
+# arts_mrts_merge = arts_grid |>
+#   select(-count, arts = rts) |>
+#   st_join(mrts_grid |>
+#             select(-count, mrts = rts)) |>
+#   bind_rows(
+#     mrts_grid |>
+#       select(-count, mrts = rts) |>
+#       st_join(arts_grid |>
+#                 select(-count, arts = rts))
+#   ) |>
+#   distinct() |>
+#   mutate(
+#     disagree = case_when(
+#       arts == 1 & mrts == 0 ~ TRUE,
+#       arts == 0 & mrts == 1 ~ TRUE,
+#       TRUE ~ FALSE
+#     ),
+#     dataset = factor(
+#       case_when(
+#         !is.na(arts) & !is.na(mrts) ~ 'Both',
+#         !is.na(arts) & is.na(mrts) ~ 'ARTS',
+#         is.na(arts) & !is.na(mrts) ~ 'MRTS',
+#         TRUE ~ NA
+#       ),
+#       levels = c('Both', 'ARTS', 'MRTS')
+#     ),
+#     class = factor(
+#       case_when(
+#         !(is.na(arts) & is.na(mrts)) & (arts == 1 | is.na(arts)) & (mrts == 1 | is.na(mrts)) ~ '+',
+#         !(is.na(arts) & is.na(mrts)) & (arts == 0 | is.na(arts)) & (mrts == 0 | is.na(mrts)) ~ '-',
+#         arts == 1 & mrts == 0 ~ '+/-',
+#         arts == 0 & mrts == 1 ~ '-/+',
+#         TRUE ~ NA
+#       ),
+#       levels = c('+', '-', '+/-', '-/+')
+#     ),
+#     dataset_class = factor(
+#       case_when(
+#         arts == 1 & mrts == 0 ~ 'Both - ARTS +',
+#         arts == 0 & mrts == 1 ~ 'Both - MRTS +',
+#         arts == 1 & mrts == 1 ~ 'Both +',
+#         arts == 0 & mrts == 0 ~ 'Both -',
+#         arts == 1 & is.na(mrts) ~ 'ARTS +',
+#         arts == 0 & is.na(mrts) ~ 'ARTS -',
+#         is.na(arts) & mrts == 1 ~ 'MRTS +',
+#         is.na(arts) & mrts == 0 ~ 'MRTS -',
+#         TRUE ~ NA
+#       ),
+#       levels = c(
+#         'Both +',
+#         'ARTS +',
+#         'MRTS +',
+#         'Both -',
+#         'ARTS -',
+#         'MRTS -',
+#         'Both - ARTS +',
+#         'Both - MRTS +'
+#       )
+#     )
+#   )
+# 
+# st_write(arts_mrts_merge,
+#          './arts_makopoulou_merge/arts_mrts_merge.geojson')
 
-mrts_grid = mrts_grid |>
-  st_as_sf(coords = c('x', 'y'), crs = 3413)
-
-arts_mrts_merge = arts_grid |>
-  select(-count, arts = rts) |>
-  st_join(mrts_grid |>
-            select(-count, mrts = rts)) |>
-  bind_rows(
-    mrts_grid |>
-      select(-count, mrts = rts) |>
-      st_join(arts_grid |>
-                select(-count, arts = rts))
-  ) |>
-  distinct() |>
-  mutate(
-    disagree = case_when(
-      arts == 1 & mrts == 0 ~ TRUE,
-      arts == 0 & mrts == 1 ~ TRUE,
-      TRUE ~ FALSE
-    ),
-    
-  )
+arts_mrts_merge = st_read('./arts_makopoulou_merge/arts_mrts_merge.geojson')
+arts_mrts_merge_rast = rasterize(
+  arts_mrts_merge,
+  pca,
+  field = 'dataset_class'
+)
 
 ggplot() + 
   geom_sf(data = world) +
   geom_sf(
     data = arts_mrts_merge |> filter(disagree == TRUE),
-    aes(color = arts)
+    aes(color = factor(arts))
   )
 ```
+
 
 ## Map Difference
 
@@ -236,20 +288,66 @@ ggplot() +
     na.value = 'transparent'
   ) +
   geom_sf(
-    data = marts_merge, 
-    aes(color = dataset), 
-    size = 0.1
+    data = arts_mrts_merge, 
+    aes(color = class, shape = dataset), 
+    size = 1,
+    linewidth = 0.05
     ) +
+  scale_shape_manual(
+    name = 'RTS Source',
+    values = c(16, 1, 6)
+  ) +
+  scale_color_manual(
+    name = 'Training Class',
+    values = c('black', 'white', 'gray30', 'gray70')
+  ) +
   # scale_color_manual(
-  #   name = 'RTS Not in ARTS',
-  #   values = c('black')
+  #   name = 'RTS Source',
+  #   values = c('#FFCC00', '#FFFF00', '#FFFF99', 
+  #              '#660099', '#CC66CC', '#CCAACC', 
+  #              '#009966', '#33FFCC')
   #   ) +
+  # scale_shape_manual(
+  #   name = 'RTS Source',
+  #   values = c(
+  #     16, 15, 18,
+  #     1, 0, 5,
+  #     7, 9
+  #   )
+  # ) +
   coord_sf(expand = FALSE) +
   ggtitle('RTS Probability Difference (Makopoulou - Woodwell)')
 
 # ggsave('./figures/rts_susceptibility_diff.jpg',
 #        height = 6,
 #        width = 8)
+```
+
+## Differences Due to Training Data Differences
+
+```{r}
+arts_mrts_data_diff = c(arts_mrts_merge_rast, rts_prob_diff) |>
+  as.data.frame(xy = TRUE, na.rm = TRUE) |>
+  mutate(
+    dataset_class = factor(
+      case_when(
+        dataset_class == 1 ~ levels(arts_mrts_merge$dataset_class)[1],
+        dataset_class == 2 ~ levels(arts_mrts_merge$dataset_class)[2],
+        dataset_class == 3 ~ levels(arts_mrts_merge$dataset_class)[3],
+        dataset_class == 4 ~ levels(arts_mrts_merge$dataset_class)[4],
+        dataset_class == 5 ~ levels(arts_mrts_merge$dataset_class)[5],
+        dataset_class == 6 ~ levels(arts_mrts_merge$dataset_class)[6],
+      ), 
+      levels = levels(arts_mrts_merge$dataset_class)
+    )
+  ) |>
+  rename('rts_prob_diff' = 'gbm_1_extr')
+```
+
+```{r}
+ggplot(arts_mrts_data_diff, aes(x = dataset_class, y = rts_prob_diff)) +
+  geom_hline(yintercept = 0, color = 'gray30', linetype = 'dashed') +
+  geom_boxplot()
 ```
 
 ## Extract Underlying Variables for Principal Components
@@ -604,8 +702,8 @@ ggplot() +
   geom_sf(data = world) +
   geom_spatraster_rgb(
     data = pca,
-    r = 1,
-    g = 2,
+    r = 2,
+    g = 1,
     b = 5,
     max_col_value = 7
   ) +
@@ -613,7 +711,7 @@ ggplot() +
   #         aes(color = susceptibility_class),
   #         fill = 'transparent') +
   coord_sf(expand = FALSE) +
-  ggtitle('Principal Components 1, 2, and 5 as RGB')
+  ggtitle('Principal Components 2, 1, and 5 as RGB')
 
 # ggsave('./figures/top_predictors_rgb.jpg',
 #        height = 6.5,

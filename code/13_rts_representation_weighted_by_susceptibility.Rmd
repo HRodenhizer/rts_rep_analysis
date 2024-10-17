@@ -114,7 +114,7 @@ ggplot() +
   coord_sf(expand = FALSE) +
   ggtitle('RTS Knowledge Gaps Weighted by RTS Susceptibility (Makopoulou)')
 
-ggsave('./figures/rts_knowledge_gaps_makopoulou.jpg',
-       height = 6,
-       width = 8)
+# ggsave('./figures/rts_knowledge_gaps_makopoulou.jpg',
+#        height = 6,
+#        width = 8)
 ```
