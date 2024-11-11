@@ -1,0 +1,190 @@
+---
+title: "TerraClimate Summary Layers"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load Libraries
+
+```{r}
+library(terra)
+library(tidyverse)
+```
+
+```{r}
+theme_set(theme_bw())
+```
+
+
+# Define Functions
+
+```{r}
+plot_raster = function(layer, layer_name, limits) {
+  
+  ggplot(
+    data = layer |>
+      as.data.frame(xy = TRUE) |>
+      rename_with(.cols = 3, ~layer_name),
+    aes(x = x, y = y, fill = .data[[layer_name]])
+  ) +
+    geom_raster() +
+    scale_fill_viridis(
+      limits = limits,
+      labels = ,
+      oob = squish
+    ) +
+    coord_fixed()
+  
+}
+```
+
+
+# Load Data
+
+```{r}
+# enter in longitude, latitude here
+lon_range = c(-180, 180)
+lat_range = c(25, 90)
+
+# time range "19611990" or "19912020"
+dates = c('19611990', '19912020')
+
+# enter in variable you want to download see: http://thredds.northwestknowledge.net:8080/thredds/catalog/TERRACLIMATE_ALL/summaries/catalog.html
+vars = c(
+  "tmax", # max temperature, average for month, deg C
+  "tmin", # min temperature, average for month, deg C
+  "swe", # snow water equivalent - at end of month, mm
+  "srad", # downward surface shortwave radiation, w/m2
+  "soil", # soil moisture, total column - at end of month, mm
+  "q", # runoff, monthly total, mm
+  "ppt" # precipitation, monthly total, mm
+)
+
+for (date_range in dates) {
+  
+  for (var in vars) {
+    name = paste(var, date_range, sep = '_')
+    
+    path = paste0(
+      'input_data/TerraClimate/TerraClimate_', 
+      date_range, 
+      '_', 
+      var, 
+      '.tif'
+    )
+    print(path)
+    
+    if (file.exists(path)) {
+      assign(
+        name, 
+        rast(path)
+      )
+      
+    }
+    
+  }
+  
+}
+```
+
+
+# Summarize Variables
+
+## Max Temperature
+
+```{r}
+tmax_19912020_max = tmax_19912020 |>
+  max()
+
+plot_raster(
+  tmax_19912020_max, 
+  'tmax', 
+  c(global(tmax_19912020_max, min, na.rm = TRUE)[1,1], 25)
+  ) +
+  ggtitle('Mean Daily Max Temperature of Hottest Month 1991-2020')
+```
+
+## Min Temperature
+
+```{r}
+# min temp
+tmin_19912020_min = tmin_19912020 |>
+  min()
+
+plot_raster(
+  tmin_19912020_min, 
+  'tmin', 
+  c(global(tmin_19912020_min, min, na.rm = TRUE)[1,1], 0)
+) +
+  ggtitle('Lowest Monthly Mean Minimum Temperature 1991-2020')
+```
+
+## Temperature Range
+
+```{r}
+trange_19912020 = tmax_19912020_max - tmin_19912020_min
+
+plot_raster(
+  trange_19912020, 
+  'tspread', 
+  c(20, global(trange_19912020, max, na.rm = TRUE)[1,1])
+) +
+  ggtitle('Magnitude of Annual Temperature Seasonality 1991-2020')
+```
+
+## Snow Water Equivalent
+
+```{r}
+swe_19912020_max = swe_19912020 |>
+  max()
+
+plot_raster(
+  swe_19912020_max, 
+  'swe_max', 
+  c(0, 500)
+) +
+  ggtitle('Max End of Month SWE 1991-2020')
+```
+
+## Cumulative Precipitation
+
+```{r}
+ppt_19912020_gs = ppt_19912020 |>
+  subset(seq(5, 9)) |>
+  sum()
+
+plot_raster(
+  ppt_19912020_gs, 
+  'precip_gs_sum', 
+  c(0, 750)
+) +
+  ggtitle('Sum of Growing Season Precipitation 1991-2020')
+```
+
+## Run-off
+
+```{r}
+q_19912020_gs = q_19912020 |>
+  subset(seq(5, 9)) |>
+  sum()
+
+plot_raster(
+  q_19912020_gs, 
+  'runoff_sum', 
+  c(0, 500)
+) +
+  ggtitle('Cumulative Run-Off (May-Sept.) 1991-2020')
+
+q_19912020_max = q_19912020 |>
+  max()
+
+plot_raster(
+  q_19912020_max, 
+  'runoff_max', 
+  c(0, 300)
+) +
+  ggtitle('Max Monthly Run-Off 1991-2020')
+
+```
+

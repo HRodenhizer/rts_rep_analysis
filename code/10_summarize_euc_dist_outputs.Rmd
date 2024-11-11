@@ -1,0 +1,272 @@
+---
+title: "Summarize Outputs"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load Packages
+
+```{r}
+library(terra)
+library(tidyterra)
+library(sf)
+library(viridis)
+library(ggnewscale)
+library(tidyverse)
+```
+
+```{r}
+theme_set(theme_bw())
+```
+
+
+# Load Data
+
+```{r}
+euc_dist = rast('./euclidean_distance/polygon_counts_1_2_v.1.0.1.tif')
+kmeans = rast('./kmeans/kmeans_10.tif')
+hydrothermal = st_read('./input_data/NIEERPermafrost/NIEER_permafrost_dataset_released/NIEER_PER_Hydrothermal_ZONES_2000_2016_NH.shp') |>
+  st_transform(crs = 3413) |>
+  select(Extent) |>
+  st_make_valid() |>
+  group_by(Extent) |>
+  summarize(geometry = st_union(geometry)) |>
+  st_simplify()
+arts_pc = st_read('./pca/arts_pc_v.1.0.1.geojson')
+pca = rast('./pca/pca.tif')
+```
+
+
+# Summarize Euclidean Distance Over Kmeans Clusters
+
+```{r}
+levels(kmeans) = tibble(
+  value = seq(1, 10),
+  kmeans = c(
+    'Southern Siberia',
+    'Kolyma, North Slope, North NT',
+    'High Arctic',
+    'Southern Baffin Island',
+    'Interior Siberia I',
+    'Quebec, Newfoundland and Labrador, SW & SE Siberia, Norway',
+    'Greenland',
+    'S AK and YT',
+    'CA Shield and Interior Siberia II',
+    'Hudson Bay Lowlands'
+  )
+)
+
+ggplot() +
+  geom_spatraster(data = kmeans) +
+  scale_fill_viridis(na.value = 'transparent',
+                     discrete = TRUE)
+
+ggplot() +
+  geom_sf(data = hydrothermal,
+          aes(color = Extent, fill = Extent)) +
+  scale_color_viridis(discrete = TRUE) +
+  scale_fill_viridis(discrete = TRUE) +
+  coord_sf(crs = 3413)
+```
+
+```{r}
+zonal_euc_dist = zonal(euc_dist,
+                       vect(hydrothermal),
+                       fun = 'mean',
+                       na.rm = TRUE,
+                       as.polygons = TRUE) |>
+  st_as_sf() |>
+  cbind(zonal(euc_dist,
+                  vect(hydrothermal),
+                  fun = 'min',
+                  na.rm = TRUE) |>
+              rename_with(~ paste0(.x, '_min'))) |>
+  cbind(zonal(euc_dist,
+                  vect(hydrothermal),
+                  fun = 'max',
+                  na.rm = TRUE) |>
+              rename_with(~ paste0(.x, '_max'))) |>
+  mutate(dist_1_count_spread = dist_1_count_max - dist_1_count_min,
+         dist_2_count_spread = dist_2_count_max - dist_2_count_min,
+         mean_dist_spread = mean_dist_max - mean_dist_min)
+```
+
+```{r}
+# Distance <= 1
+ggplot() +
+  geom_spatraster(data = euc_dist, aes(fill = dist_1_count)) +
+  scale_fill_viridis(na.value = 'transparent') +
+  ggtitle('Count of RTS Within Euclidean Distance of 1 Std Dev')
+
+ggplot() +
+  geom_sf(data = zonal_euc_dist, aes(color = dist_1_count, fill = dist_1_count)) +
+  scale_color_viridis(na.value = 'transparent') +
+  scale_fill_viridis(na.value = 'transparent') +
+  ggtitle('Mean Count of RTS Within Euclidean Distance of 1 Std Dev Across Hydrothermal Zones')
+
+ggplot() +
+  geom_sf(data = zonal_euc_dist, aes(color = dist_1_count_spread, fill = dist_1_count_spread)) +
+  scale_color_viridis(na.value = 'transparent') +
+  scale_fill_viridis(na.value = 'transparent') +
+  ggtitle('Spread of Pixel-level Count of RTS Within Euclidean Distance of 1 Std Dev Across Hydrothermal Zones')
+
+# Distance <= 2
+ggplot() +
+  geom_spatraster(data = euc_dist, aes(fill = dist_2_count)) +
+  scale_fill_viridis(na.value = 'transparent') +
+  ggtitle('Count of RTS Within Euclidean Distance of 2 Std Dev')
+
+ggplot() +
+  geom_sf(data = zonal_euc_dist, aes(color = dist_2_count, fill = dist_2_count)) +
+  scale_color_viridis(na.value = 'transparent') +
+  scale_fill_viridis(na.value = 'transparent') +
+  ggtitle('Mean Count of RTS Within Euclidean Distance of 2 Std Dev Across Hydrothermal Zones')
+
+ggplot() +
+  geom_sf(data = zonal_euc_dist, aes(color = dist_2_count_spread, fill = dist_2_count_spread)) +
+  scale_color_viridis(na.value = 'transparent') +
+  scale_fill_viridis(na.value = 'transparent') +
+  ggtitle('Spread of Pixel-level Count of RTS Within Euclidean Distance of 2 Std Dev Across Hydrothermal Zones')
+
+# Mean Distance
+ggplot() +
+  geom_spatraster(data = euc_dist, aes(fill = mean_dist)) +
+  scale_fill_viridis(na.value = 'transparent') +
+  ggtitle('Mean Euclidean Distance to all RTS')
+
+ggplot() +
+  geom_sf(data = zonal_euc_dist, aes(color = mean_dist, fill = mean_dist)) +
+  scale_color_viridis(na.value = 'transparent') +
+  scale_fill_viridis(na.value = 'transparent') +
+  ggtitle('Mean Euclidean Distance to all RTS Across Hydrothermal Zones')
+
+ggplot() +
+  geom_sf(data = zonal_euc_dist, aes(color = mean_dist_spread, fill = mean_dist_spread)) +
+  scale_color_viridis(na.value = 'transparent') +
+  scale_fill_viridis(na.value = 'transparent') +
+  ggtitle('Spread of Pixel-level Mean Euclidean Distance to all RTS Across Hydrothermal Zones')
+```
+
+% Area within each region with no RTS within x distance
+
+```{r}
+count_0 = euc_dist |>
+  subset(1:2) |>
+  classify(matrix(c(0, 0, 1, 1, Inf, 0), ncol = 3, byrow = TRUE))
+names(count_0) = c('pixel0_count_1_sum', 'pixel0_count_2_sum')
+
+zonal_0_sum = zonal(count_0,
+                    vect(hydrothermal),
+                       fun = 'sum',
+                       na.rm = TRUE,
+                       as.polygons = TRUE) |>
+  st_as_sf() |>
+  mutate(
+    across(
+      pixel0_count_1_sum:pixel0_count_2_sum,
+      ~ as.numeric(.x / st_area(geometry)),
+      .names = "{.col}_percent"
+    )  )
+
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = zonal_0_sum, aes(color = pixel0_count_1_sum, fill = pixel0_count_1_sum)) +
+  scale_color_viridis(na.value = 'transparent') +
+  scale_fill_viridis(na.value = 'transparent')
+
+ggplot() +
+  geom_sf(data = zonal_0_sum, aes(color = pixel0_count_1_sum_percent, fill = pixel0_count_1_sum_percent)) +
+  scale_color_viridis(na.value = 'transparent') +
+  scale_fill_viridis(na.value = 'transparent')
+
+ggplot() +
+  geom_sf(data = zonal_0_sum, aes(color = pixel0_count_2_sum, fill = pixel0_count_2_sum)) +
+  scale_color_viridis(na.value = 'transparent') +
+  scale_fill_viridis(na.value = 'transparent')
+
+ggplot() +
+  geom_sf(data = zonal_0_sum, aes(color = pixel0_count_2_sum_percent, fill = pixel0_count_2_sum_percent)) +
+  scale_color_viridis(na.value = 'transparent') +
+  scale_fill_viridis(na.value = 'transparent')
+```
+
+# PCA Environmental Space vs. RTS Environmental Space
+
+```{r}
+pca_df = pca |>
+  as.data.frame(cell = TRUE, xy = TRUE, na.rm = TRUE)
+```
+
+```{r, fig.height = 6.5, fig.width = 6.5}
+ggplot(pca_df, aes(x = PC1, y = PC2)) +
+  geom_hex(aes(color = after_stat(count), fill = after_stat(count))) +
+  scale_color_viridis(name = 'Count') +
+  scale_fill_viridis(name = 'Count') +
+  new_scale_color() +
+  geom_point(data = arts_pc,
+             aes(x = PC1, y = PC2, color = as.numeric(CentroidLon)),
+             alpha = 0.2) +
+  scale_color_gradient(name = 'Longitude',
+                       low = 'white',
+                       high = 'black') +
+  # Svalbard in red
+  geom_point(
+    data = arts_pc |> 
+      filter(as.numeric(CentroidLon) < 45 & as.numeric(CentroidLon) > 10),
+    aes(x = PC1, y = PC2),
+    color = 'red',
+    inherit.aes = FALSE
+  ) +
+  # Lena River in Orange
+  geom_point(
+    data = arts_pc |> 
+      filter(as.numeric(CentroidLon) > 120 & as.numeric(CentroidLon) < 125),
+    aes(x = PC1, y = PC2),
+    color = 'orange',
+    inherit.aes = FALSE
+  ) +
+  # Lena Delta in Yellow
+  geom_point(
+    data = arts_pc |> 
+      filter(as.numeric(CentroidLon) > 125 & as.numeric(CentroidLon) < 130),
+    aes(x = PC1, y = PC2),
+    color = 'yellow',
+    inherit.aes = FALSE
+  ) +
+  # Batagay in Green
+  geom_point(
+    data = arts_pc |> 
+      filter(as.numeric(CentroidLon) > 130 & as.numeric(CentroidLon) < 140),
+    aes(x = PC1, y = PC2),
+    color = 'green',
+    inherit.aes = FALSE
+  )
+
+# ggsave('./figures/rts_over_pca_regions.pdf',
+#        height = 6.5,
+#        width = 6.5)
+# ggsave('./figures/rts_over_pca_regions.jpg',
+#        height = 6.5,
+#        width = 6.5)
+
+ggplot(pca_df, aes(x = PC1, y = PC2)) +
+  geom_hex(aes(color = after_stat(count), fill = after_stat(count))) +
+  scale_color_viridis(name = 'Count') +
+  scale_fill_viridis(name = 'Count') +
+  new_scale_color() +
+  geom_point(data = arts_pc,
+             aes(x = PC1, y = PC2),
+             color = 'black',
+             alpha = 0.2)
+
+# ggsave('./figures/rts_over_pca.pdf',
+#        height = 6.5,
+#        width = 6.5)
+# ggsave('./figures/rts_over_pca.jpg',
+#        height = 6.5,
+#        width = 6.5)
+```
+

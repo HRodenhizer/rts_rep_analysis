@@ -1,0 +1,83 @@
+---
+title: "Environmental K Means"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load Libraries
+
+```{r}
+library(terra)
+library(tidyterra)
+library(sf)
+library(tidyverse)
+```
+
+```{r}
+theme_set(theme_bw())
+```
+
+# Load Input Data
+
+```{r}
+rts_rep_rescale = rast('./input_data/rts_rep_input_data_rescale_3413.tif') # |>
+  # aggregate(fact = 5, fun = mean, na.rm = FALSE, cores = 18)
+```
+
+
+# K-Means Clustering
+
+```{r}
+n_centers = 10
+km = k_means(rts_rep_rescale, centers = n_centers)
+levels(km) = tibble(id = seq(1, n_centers),
+                           kmeans = seq(1, n_centers))
+```
+
+```{r}
+ggplot() +
+  geom_spatraster(data = km) +
+  scale_fill_manual(
+    name = 'Kmeans\nCluster',
+    values = c(
+      '#CC0000',
+      '#009999',
+      '#FFCC33',
+      '#660099',
+      '#006600',
+      '#FF6600',
+      '#990066',
+      '#6666FF',
+      '#66CC66',
+      '#FF99CC',
+      '#3399FF',
+      '#FF9900',
+      '#000066',
+      '#00CC99',
+      '#FF3399',
+      '#99CC00',
+      '#336666',
+      '#FF3333',
+      '#3300CC',
+      '#CC6600'
+    ),
+    na.value = 'transparent',
+    na.translate = FALSE
+  ) +
+  coord_sf(expand = FALSE)
+
+# ggsave('./figures/kmeans.jpg',
+#        height = 6.5,
+#        width = 6.5)
+# ggsave('./figures/kmeans.pdf',
+#        height = 6.5,
+#        width = 6.5)
+```
+
+```{r}
+# writeRaster(km,
+#             './kmeans/kmeans_10.tif')
+```
+
+

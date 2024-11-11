@@ -1,0 +1,173 @@
+---
+title: "Prep Polygons"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+Calculate PCA coordinates for all polygons
+
+# Load Libraries
+
+```{r}
+library(terra)
+library(tidyterra)
+library(sf)
+library(viridis)
+library(tidyverse)
+```
+
+
+# Load Data
+
+```{r}
+arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.1/ARTS_main_dataset_v.1.0.1.geojson') |>
+  distinct() |>
+  st_make_valid() 
+arts = arts |>
+  mutate(
+    replicate = arts |>
+      st_drop_geometry() |>
+      mutate(replicate = 1:n(), .by = everything()) |>
+      pull(replicate)
+  ) |>
+  filter(replicate == 1) |>
+  select(-replicate)
+```
+
+```{r}
+pca = rast('./pca/pca.tif')
+```
+
+
+# Calculate Principal Components by Polygon
+
+```{r}
+pc_values_poly = terra::extract(
+  pca, 
+  vect(arts |>
+         filter(st_geometry_type(geometry) %in% c('POLYGON', 'MULTIPOLYGON'))),
+  cells = TRUE,
+  ID = FALSE,
+  fun = 'mean',
+  na.rm = TRUE
+  ) |>
+  mutate(order = which(st_geometry_type(arts$geometry) %in% c('POLYGON', 'MULTIPOLYGON')))
+
+pc_values_point = terra::extract(
+  pca, 
+  vect(arts |>
+         filter(st_geometry_type(geometry) == 'POINT')),
+  ID = FALSE
+  ) |>
+  mutate(order = which(st_geometry_type(arts$geometry) == 'POINT'))
+
+pc_values = pc_values_poly |>
+  rbind(pc_values_point) |>
+  arrange(order) |>
+  select(-order)
+
+pc_buffer_values = terra::extract(
+  pca, 
+  vect(
+    arts |>
+      st_buffer(5000)
+         ),
+  ID = FALSE,
+  fun = 'mean',
+  na.rm = TRUE,
+  touches = TRUE
+  )
+```
+
+```{r}
+# arts_duplicates = arts |>
+#   mutate(
+#     n = arts |>
+#       st_drop_geometry() |>
+#       mutate(n = n(), .by = everything()) |>
+#       pull(n)
+#   ) |>
+#   filter(n > 1)
+# 
+# arts_duplicates_example = arts_duplicates |>
+#   filter(CentroidLat == 67.69903841)
+# 
+# ggplot() +
+#   geom_sf(data = arts_duplicates_example,
+#           fill = 'transparent')
+# 
+# st_write(
+#   arts_duplicates,
+#   '../ARTS_supporting_files/runge_duplicates_v.1.0.1/runge_duplicates_v.1.0.1.geojson'
+#   )
+```
+
+```{r}
+arts_pc = arts |>
+  st_drop_geometry() |>
+  bind_cols(pc_values) |>
+  bind_cols(
+    pc_buffer_values |>
+      rename_with(~ paste0(.x, '_buffer'))
+  ) |>
+  pivot_longer(cols = PC1:PC30_buffer) |>
+  mutate(type = case_when(str_detect(name, 'buffer') ~ 'buffer',
+                          TRUE ~ 'normal'),
+         variable = str_extract(name, 'PC\\d+')) |>
+  select(-name) |>
+  pivot_wider(
+    id_cols = c(CentroidLat:Notes, variable),
+    names_from = 'type',
+    values_from = 'value'
+  ) |>
+  mutate(normal = case_when(is.na(normal) ~ buffer,
+                            TRUE ~ normal)) |>
+  select(-buffer) |>
+  pivot_wider(names_from = 'variable',
+              values_from = 'normal') |>
+  full_join(arts,
+            by = colnames(arts)[-length(colnames(arts))]) |>
+  st_as_sf()
+
+arts_pc |>
+  st_drop_geometry() |>
+  filter(is.na(PC1)) |>
+  summarise(n())
+```
+
+```{r}
+st_write(arts_pc,
+         './pca/arts_pc_v.1.0.1.geojson')
+```
+
+```{r}
+na_data = arts_pc |> 
+  filter(is.na(PC1))
+
+for (idx in 1:nrow(na_data)) {
+  
+  data = na_data |>
+    slice(idx)
+  
+  pcdata = crop(
+    pca |>
+      subset('PC1'),
+    data |>
+      st_buffer(dist = 5000) |>
+      st_bbox()
+  )
+  
+  print(ggplot() +
+    geom_spatraster(data = pcdata) +
+    geom_sf(data = data) +
+      geom_sf(data = data |>
+                st_buffer(dist = 1000),
+              color = 'red',
+              fill = 'transparent') +
+    scale_fill_viridis(na.value = 'transparent'))
+}
+
+
+```
+

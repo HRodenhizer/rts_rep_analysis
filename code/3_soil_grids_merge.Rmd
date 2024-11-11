@@ -1,0 +1,64 @@
+---
+title: "Soil Grids V2 Merge"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(terra)
+library(tidyverse)
+```
+
+```{r}
+files = list.files('./input_data/SoilGridsV2/ee_downloads',
+                   pattern = 'tif$',
+                   full.names = TRUE)
+
+subsets = files |>
+  map_chr(
+    ~ str_split(
+      str_split(.x, '/')[[1]][length(str_split(.x, '/')[[1]])],
+      '-'
+    )[[1]][1]
+  ) |>
+  unique()
+```
+
+```{r}
+load_soilgrids = function(files, pattern) {
+  subset = files[str_which(files, pattern)]
+  print(subset)
+  
+  raster = subset |>
+    map(~ rast(.x)) |>
+    sprc() |>
+    merge()
+  
+  names(raster) = str_to_lower(
+    str_split(
+      str_split(subset, 'SoilGrids')[[1]][length(str_split(subset, 'SoilGrids')[[1]])], 
+      '4326'
+    )[[1]][1]
+  )
+  
+  return(raster)
+}
+```
+
+```{r}
+soilgrids = subsets |>
+  map(~ load_soilgrids(files, .x)) |>
+  rast()
+```
+
+```{r}
+soilgrids = soilgrids |>
+  subset(c('clay', 'sand', 'silt', 'ocs'))
+```
+
+```{r}
+# writeRaster(soilgrids,
+#             './input_data/SoilGridsV2/SoilGridsV2Compiled.tif')
+```
+

@@ -1,0 +1,58 @@
+---
+title: "MODIS LST Merge"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(terra)
+library(tidyverse)
+```
+
+```{r}
+files = list.files('./input_data/MODIS_LST/ee_downloads',
+                   pattern = 'tif$',
+                   full.names = TRUE)
+
+subsets = files |>
+  map_chr(
+    ~ str_split(
+      str_split(.x, '/')[[1]][length(str_split(.x, '/')[[1]])],
+      '-'
+    )[[1]][1]
+  ) |>
+  unique()
+```
+
+```{r}
+load_lst = function(files, pattern) {
+  subset = files[str_which(files, pattern)]
+  print(subset)
+  
+  raster = subset |>
+    map(~ rast(.x)) |>
+    sprc() |>
+    merge()
+  
+  return(raster)
+}
+```
+
+```{r}
+modis_lst = subsets |>
+  map(~ load_lst(files, .x)) |>
+  rast()
+```
+
+```{r}
+modis_lst = modis_lst %>%
+  subset(str_which(names(.), 'b0', negate = TRUE))
+names(modis_lst) = c('lst_gs_mean', 'lst_gs_b1')
+```
+
+```{r}
+# writeRaster(modis_lst,
+#             './input_data/MODIS_LST/MODISLSTCompiled.tif')
+```
+
