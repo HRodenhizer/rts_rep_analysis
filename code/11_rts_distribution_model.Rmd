@@ -40,13 +40,50 @@ world = world |>
 ```
 
 
+# Approximate ROI from Positive RTS occurrences
+
+```{r}
+arts_pos = arts |>
+  filter(TrainClass == 'Positive') |>
+  st_buffer(dist = 100000) |>
+  st_union()
+
+arts_filter = arts |>
+  st_filter(arts_pos,
+            .predicate = st_within)
+
+ggplot() +
+  geom_sf(data = world,
+          fill = 'transparent') +
+  geom_sf(data = arts,
+          size = 0.2,
+          linewidth = 1,
+          color = 'red') +
+  geom_sf(data = arts_pos,
+          size = 0.2,
+          linewidth = 1,
+          fill = 'transparent') +
+  geom_sf(data = arts_filter,
+          aes(color = TrainClass),
+          size = 0.2,
+          linewidth = 1,
+          alpha = 0.5) +
+  coord_sf(expand = FALSE)
+```
+
+```{r}
+arts_filter |>
+  count(.by = TrainClass)
+```
+
+
 # Aggregate RTS Delineations to Presence/Absence in 1 km Grid
 
 Presence Data
 
 ```{r}
 # arts_poly_rast = rasterizeGeom(
-#   vect(arts %>%
+#   vect(arts_filter %>%
 #          filter(
 #            TrainClass == 'Positive' &
 #              (st_geometry_type(.) == 'POLYGON' | st_geometry_type(.) == 'MULTIPOLYGON'))
@@ -56,7 +93,7 @@ Presence Data
 # )
 # 
 # arts_point_rast = rasterizeGeom(
-#   vect(arts %>%
+#   vect(arts_filter %>%
 #          filter(
 #            TrainClass == 'Positive' &
 #              st_geometry_type(.) == 'POINT')
@@ -124,14 +161,13 @@ geom_spatraster isn't great for displaying this data, because the summarizing us
 #     # ylim = c(-900000, -750000),
 #     expand = FALSE
 #     )
-
 ```
 
 Absence Data
 
 ```{r}
 # arts_neg_rast = rasterize(
-#   vect(arts %>%
+#   vect(arts_filter %>%
 #          filter(TrainClass == 'Negative') %>%
 #          st_centroid()),
 #   pca
@@ -158,9 +194,9 @@ Combine Presence and Absence Data
 # 
 # write_csv(
 #   arts_grid,
-#   './sdm/arts_grid.csv'
+#   './sdm/arts_grid_filter.csv'
 # )
-arts_grid = read_csv('./sdm/arts_grid.csv')
+# arts_grid = read_csv('./sdm/arts_grid_filter.csv')
 ```
 
 # Format Data for SDM
@@ -173,8 +209,8 @@ arts_grid = read_csv('./sdm/arts_grid.csv')
 #   resp.name = 'rts'
 # )
 # 
-# saveRDS(arts_biomod, './sdm/arts_biomod_v.1.0.1.rds')
-arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.1.rds')
+# saveRDS(arts_biomod, './sdm/arts_biomod_v.1.0.1_filter.rds')
+arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.1_filter.rds')
 ```
 
 # Run Models
@@ -208,7 +244,7 @@ arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.1.rds')
 # 
 # print(Sys.time())
 # 
-# saveRDS(tuned.gbm, './sdm/tuned_parameters_v.1.0.1.rds')
+# saveRDS(tuned.gbm, './sdm/tuned_parameters_v.1.0.1_filter.rds')
 ```
 
 ```{r}
@@ -243,10 +279,10 @@ arts_biomod = readRDS('./sdm/arts_biomod_v.1.0.1.rds')
 
 ```{r}
 # saveRDS(rts_model,
-#         './sdm/rts_gbm_kfold_10_tuned_v.1.0.1.rds')
+#         './sdm/rts_gbm_kfold_10_tuned_v.1.0.1_filter.rds')
 
 
-rts_model = readRDS('./sdm/rts_gbm_kfold_10_tuned_v.1.0.1.rds')
+rts_model = readRDS('./sdm/rts_gbm_kfold_10_tuned_v.1.0.1_filter.rds')
 ```
 
 Evaluation Scores
@@ -301,11 +337,11 @@ var_import_fig = ggplot(var_import_summary, aes(y = variable)) +
   scale_y_discrete(name = 'Variable')
 
 var_import_fig
-# ggsave('./figures/variable_importance.jpg',
+# ggsave('./figures/variable_importance_filter.jpg',
 #        var_import_fig,
 #        height = 3,
 #        width = 4)
-# ggsave('./figures/variable_importance.pdf',
+# ggsave('./figures/variable_importance_filter.pdf',
 #        var_import_fig,
 #        height = 3,
 #        width = 4)
@@ -391,18 +427,18 @@ bm_PlotResponseCurves(bm.out = rts_model,
 
 ```{r}
 # saveRDS(rts_pred,
-#         './sdm/rts_gbm_kfold_10_pred_tuned_v.1.0.1.rds')
+#         './sdm/rts_gbm_kfold_10_pred_tuned_v.1.0.1_filter.rds')
 
-rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred_tuned_v.1.0.1.rds')
+rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred_tuned_v.1.0.1_filter.rds')
 
 # writeRaster(rts_susceptibility,
-#             './sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1.tif')
+#             './sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1_filter.tif')
 
-rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1.tif')
+rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1_filter.tif')
 rts_probability_median = median(rts_susceptibility[[1:10]]/10)
 
 # writeRaster(rts_probability_median,
-#             './sdm/gbm_kfold_10_pred_tuned_median_v.1.0.1.tif')
+#             './sdm/gbm_kfold_10_pred_tuned_median_v.1.0.1_filter.tif')
 ```
 
 ```{r}
@@ -415,7 +451,7 @@ ggplot() +
                      na.value = 'transparent') +
   coord_sf(expand = FALSE)
 
-# ggsave('./figures/rts_probability_median.jpg',
+# ggsave('./figures/rts_probability_median_filter.jpg',
 #        height = 5,
 #        width = 6.5)
 
@@ -440,10 +476,10 @@ ggplot() +
   )
 
 # bug makes the fill not line up with the outline when saving to jpg
-# ggsave('./figures/rts_probability_median_w_arts.jpg',
+# ggsave('./figures/rts_probability_median_filter_w_arts.jpg',
 #        height = 5,
 #        width = 6.5)
-# ggsave('./figures/rts_probability_median_w_arts.pdf',
+# ggsave('./figures/rts_probability_median_filter_w_arts.pdf',
 #        height = 5,
 #        width = 6.5)
 ```
@@ -483,7 +519,7 @@ levels(rts_susceptibility_class) = tibble(
 )
 
 # writeRaster(rts_susceptibility_class,
-#             './sdm/gbm_kfold_10_pred_tuned_combined_class_v.1.0.1.tif')
+#             './sdm/gbm_kfold_10_pred_tuned_combined_class_v.1.0.1_filter.tif')
 ```
 
 ```{r, fig.height = 6, fig.width = 6.5}
@@ -510,11 +546,11 @@ ggplot() +
         legend.justification = c(1, 0),
         legend.position.inside = c(0.998, 0.002))
 
-# ggsave('./figures/rts_susceptibility.jpg',
+# ggsave('./figures/rts_susceptibility_filter.jpg',
 #        height = 6,
 #        width = 6.5)
 
-# ggsave('./figures/rts_susceptibility_blue_red.jpg',
+# ggsave('./figures/rts_susceptibility_filter_blue_red.jpg',
 #        height = 6,
 #        width = 6.5)
 ```
@@ -544,7 +580,7 @@ levels(rts_presence_pred) = tibble(
 )
 
 # writeRaster(rts_presence_pred,
-#             './sdm/rts_presence_pred.tif')
+#             './sdm/rts_presence_pred_filter.tif')
 ```
 
 ```{r}
@@ -563,7 +599,7 @@ ggplot() +
         legend.justification = c(1, 0),
         legend.position.inside = c(0.998, 0.002))
 
-# ggsave('./figures/rts_presence_pred.jpg',
+# ggsave('./figures/rts_presence_pred_filter.jpg',
 #        height = 6,
 #        width = 6.5)
 ```
@@ -590,11 +626,11 @@ ggplot() +
   #                     na.value = 'transparent') +
   coord_sf(expand = FALSE)
 
-# ggsave('./figures/rts_coefficient_of_variation.jpg',
+# ggsave('./figures/rts_coefficient_of_variation_filter.jpg',
 #        height = 5,
 #        width = 6.5)
 
-# ggsave('./figures/rts_coefficient_of_variation_red.jpg',
+# ggsave('./figures/rts_coefficient_of_variation_filter_red.jpg',
 #        height = 5,
 #        width = 6.5)
 ```

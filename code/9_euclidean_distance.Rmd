@@ -32,19 +32,21 @@ levels(km) = tibble(id = seq(1, 20),
                     kmeans = seq(1, 20))
 
 pca = rast('./pca/pca.tif') |>
-  subset(c('PC1', 'PC2', 'PC3'))
+  subset(c('PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6'))
 
 pca_df = pca |>
   as.data.frame(cell = TRUE, xy = TRUE, na.rm = TRUE)
 
-arts_pc = st_read('./pca/arts_pc.geojson') |>
+arts_pc = st_read('./pca/arts_pc_v.1.0.1.geojson') |>
   st_drop_geometry() |>
-  select(-matches('PC([456789]{1}|\\d{2})')) # only keep PC1-PC3
+  select(-matches('PC([789]{1}|\\d{2})')) # only keep PC1-PC6
 
 world <- ne_countries(scale = "large", returnclass = "sf")
 
-arts_pc_plot = st_read('./pca/arts_pc.geojson') |>
-  filter(!(is.na(PC1) | is.na(PC2) | is.na(PC3)))
+arts_pc_plot = st_read('./pca/arts_pc_v.1.0.1.geojson') |>
+  filter(
+    !(is.na(PC1) | is.na(PC2) | is.na(PC3) | is.na(PC4) | is.na(PC5) | is.na(PC6))
+    )
 ```
 
 
@@ -64,7 +66,7 @@ If I start by calculating the distance from a random sample of pixels to each po
 # converting to list prior to for loop speeds up computation
 # ENORMOUSLY, matrices are about twice as slow as lists, and my original tibble version was at least an order of magnitude slower
 arts_pc_l = arts_pc |>
-  select(PC1:PC3) |>
+  select(PC1:PC6) |>
   drop_na() |>
   as.matrix() |>
   t() |>
@@ -79,7 +81,7 @@ sample_size = 10000
 
 pixel_sample = pca_df |>
   slice(sample(nrow(pca_df), size = sample_size)) |>
-  select(PC1:PC3) |>
+  select(PC1:PC6) |>
   as.matrix() |>
   t() |>
   as_tibble() |>
@@ -151,7 +153,7 @@ ggplot(euc_dist_df, aes(x = euc_dist)) +
 # converting to list prior to for loop speeds up computation
 # ENORMOUSLY
 arts_pc_l = arts_pc |>
-  select(PC1:PC3) |>
+  select(PC1:PC6) |>
   drop_na() |>
   as.matrix() |>
   t() |>
@@ -167,19 +169,19 @@ arts_pc_l = arts_pc |>
 
 pca_l = pca_df |>
   # slice(sample(nrow(pca_df), size = sample_size)) |>
-  select(PC1:PC3) |>
+  select(PC1:PC6) |>
   as.matrix() |>
   t() |>
   as_tibble() |>
   as.list()
 ```
 
-Try cut-offs of 3, 2, and 1.
+Try cut-offs of 2 and 1.
 
-5 is definitely too large a radius. 2 seems pretty close, and is about the standard deviation of euclidean distances between each pixel and all of the RTS polygons.
+2 seems pretty close, and is about the standard deviation of euclidean distances between each pixel and all of the RTS polygons.
 
 1 - Calculate euclidean distance to each polygon from each pixel.
-2 - Calculate number of polygons closer than 5, 2, and 1 unit distance.
+2 - Calculate number of polygons closer than 3, 2, and 1 unit distance.
 3 - Save three values as bands in a raster.
 
 This requires ~32 seconds for a subset of 10000 pixels, or about 12.3 hours for the whole dataset with the current number of polygons.
@@ -189,6 +191,8 @@ Running on 18 cores in parallel, this takes about 9.4 seconds for 10000 pixels, 
 With a dataset of ~14500 polygons, this should take about 25 hours. It took 1.18 days with version 17.
 
 For version 20, there are ~21000 polygons, so it should take about somewhere between 36 and 41 hours. It took 1.55 days.
+
+For version v.1.0.1 with the first 6 PC layers and distances of 1 or 2, a subset of 10000 pixels took 2.29 minutes (138 seconds) to run. For the whole region, it should take about 53 hours, or 2.2 days. It took 1.44 days.
 
 ```{r}
 n_polys = length(arts_pc_l)
@@ -221,7 +225,6 @@ counts = foreach (pixel_idx = 1:n_pixels) %dopar% {
   c(
       length(euc_dist[euc_dist <= 1]),
       length(euc_dist[euc_dist <= 2]),
-      length(euc_dist[euc_dist <= 3]),
       mean(euc_dist)
     )
   
@@ -241,16 +244,14 @@ counts = matrix(
 ```
 
 ```{r}
-euc_dist_rast = pca
-add(euc_dist_rast) = pca[[1]]
+euc_dist_rast = pca[[1:3]]
 values(euc_dist_rast[[1]])[pca_df$cell] = counts[,1]
 values(euc_dist_rast[[2]])[pca_df$cell] = counts[,2]
 values(euc_dist_rast[[3]])[pca_df$cell] = counts[,3]
-values(euc_dist_rast[[4]])[pca_df$cell] = counts[,4]
 
-names(euc_dist_rast) = c('dist_1_count', 'dist_2_count', 'dist_3_count', 'mean_dist')
+names(euc_dist_rast) = c('dist_1_count', 'dist_2_count', 'mean_dist')
 
-writeRaster(euc_dist_rast, './euclidean_distance/polygon_counts_1_2_3_v20.tif')
+writeRaster(euc_dist_rast, './euclidean_distance/polygon_counts_1_2_v.1.0.1.tif')
 ```
 
 ```{r}
@@ -273,9 +274,9 @@ ggplot() +
         legend.position.inside = c(0.75, 0.25),
         legend.justification = c(0.5, 0.5))
 
-# ggsave('./figures/euc_dist_poly_counts.jpg',
+# ggsave('./figures/euc_dist_poly_counts_v.1.0.1.jpg',
 #        height = 6.5, width = 6.5)
-# ggsave('./figures/euc_dist_poly_counts.pdf',
+# ggsave('./figures/euc_dist_poly_counts_v.1.0.1.pdf',
 #        height = 6.5, width = 6.5)
 
 ggplot() +
@@ -297,14 +298,14 @@ ggplot() +
   #       legend.position.inside = c(0.75, 0.25),
   #       legend.justification = c(0.5, 0.5))
 
-# ggsave('./figures/euc_dist_poly_counts_2.jpg',
+# ggsave('./figures/euc_dist_poly_counts_2_v.1.0.1.jpg',
 #        height = 6.5, width = 6.5)
-# ggsave('./figures/euc_dist_poly_counts_2.pdf',
+# ggsave('./figures/euc_dist_poly_counts_2_v.1.0.1.pdf',
 #        height = 6.5, width = 6.5)
 
 ggplot() +
   geom_spatraster(data = euc_dist_rast |>
-                    subset(4)) +
+                    subset(3)) +
   scale_fill_viridis(name = 'Mean\nEuclidean\nDistance',
                      na.value = 'transparent',
                      limits = c(0, 15),
@@ -321,9 +322,9 @@ ggplot() +
   #       legend.position.inside = c(0.75, 0.25),
   #       legend.justification = c(0.5, 0.5))
 
-# ggsave('./figures/mean_euc_dist.jpg',
+# ggsave('./figures/mean_euc_dist_v.1.0.1.jpg',
 #        height = 6.5, width = 6.5)
-# ggsave('./figures/mean_euc_dist.pdf',
+# ggsave('./figures/mean_euc_dist_v.1.0.1.pdf',
 #        height = 6.5, width = 6.5)
 ```
 

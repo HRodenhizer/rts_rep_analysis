@@ -21,9 +21,18 @@ library(tidyverse)
 # Load Data
 
 ```{r}
-arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.0/ARTS_main_dataset.geojson') |>
+arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.1/ARTS_main_dataset_v.1.0.1.geojson') |>
   distinct() |>
-  st_make_valid()
+  st_make_valid() 
+arts = arts |>
+  mutate(
+    replicate = arts |>
+      st_drop_geometry() |>
+      mutate(replicate = 1:n(), .by = everything()) |>
+      pull(replicate)
+  ) |>
+  filter(replicate == 1) |>
+  select(-replicate)
 ```
 
 ```{r}
@@ -72,10 +81,33 @@ pc_buffer_values = terra::extract(
 ```
 
 ```{r}
+# arts_duplicates = arts |>
+#   mutate(
+#     n = arts |>
+#       st_drop_geometry() |>
+#       mutate(n = n(), .by = everything()) |>
+#       pull(n)
+#   ) |>
+#   filter(n > 1)
+# 
+# arts_duplicates_example = arts_duplicates |>
+#   filter(CentroidLat == 67.69903841)
+# 
+# ggplot() +
+#   geom_sf(data = arts_duplicates_example,
+#           fill = 'transparent')
+# 
+# st_write(
+#   arts_duplicates,
+#   '../ARTS_supporting_files/runge_duplicates_v.1.0.1/runge_duplicates_v.1.0.1.geojson'
+#   )
+```
+
+```{r}
 arts_pc = arts |>
   st_drop_geometry() |>
-  cbind(pc_values) |>
-  cbind(
+  bind_cols(pc_values) |>
+  bind_cols(
     pc_buffer_values |>
       rename_with(~ paste0(.x, '_buffer'))
   ) |>
@@ -106,7 +138,7 @@ arts_pc |>
 
 ```{r}
 st_write(arts_pc,
-         './pca/arts_pc_v.1.0.0.geojson')
+         './pca/arts_pc_v.1.0.1.geojson')
 ```
 
 ```{r}

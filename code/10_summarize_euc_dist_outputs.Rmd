@@ -24,7 +24,7 @@ theme_set(theme_bw())
 # Load Data
 
 ```{r}
-euc_dist = rast('./euclidean_distance/polygon_counts_1_2_3_v20.tif')
+euc_dist = rast('./euclidean_distance/polygon_counts_1_2_v.1.0.1.tif')
 kmeans = rast('./kmeans/kmeans_10.tif')
 hydrothermal = st_read('./input_data/NIEERPermafrost/NIEER_permafrost_dataset_released/NIEER_PER_Hydrothermal_ZONES_2000_2016_NH.shp') |>
   st_transform(crs = 3413) |>
@@ -33,7 +33,7 @@ hydrothermal = st_read('./input_data/NIEERPermafrost/NIEER_permafrost_dataset_re
   group_by(Extent) |>
   summarize(geometry = st_union(geometry)) |>
   st_simplify()
-arts_pc = st_read('./pca/arts_pc.geojson')
+arts_pc = st_read('./pca/arts_pc_v.1.0.1.geojson')
 pca = rast('./pca/pca.tif')
 ```
 
@@ -89,7 +89,6 @@ zonal_euc_dist = zonal(euc_dist,
               rename_with(~ paste0(.x, '_max'))) |>
   mutate(dist_1_count_spread = dist_1_count_max - dist_1_count_min,
          dist_2_count_spread = dist_2_count_max - dist_2_count_min,
-         dist_3_count_spread = dist_3_count_max - dist_3_count_min,
          mean_dist_spread = mean_dist_max - mean_dist_min)
 ```
 
@@ -130,24 +129,6 @@ ggplot() +
   scale_fill_viridis(na.value = 'transparent') +
   ggtitle('Spread of Pixel-level Count of RTS Within Euclidean Distance of 2 Std Dev Across Hydrothermal Zones')
 
-# Distance <= 3
-ggplot() +
-  geom_spatraster(data = euc_dist, aes(fill = dist_3_count)) +
-  scale_fill_viridis(na.value = 'transparent') +
-  ggtitle('Count of RTS Within Euclidean Distance of 3 Std Dev')
-
-ggplot() +
-  geom_sf(data = zonal_euc_dist, aes(color = dist_3_count, fill = dist_3_count)) +
-  scale_color_viridis(na.value = 'transparent') +
-  scale_fill_viridis(na.value = 'transparent') +
-  ggtitle('Mean Count of RTS Within Euclidean Distance of 3 Std Dev Across Hydrothermal Zones')
-
-ggplot() +
-  geom_sf(data = zonal_euc_dist, aes(color = dist_3_count_spread, fill = dist_3_count_spread)) +
-  scale_color_viridis(na.value = 'transparent') +
-  scale_fill_viridis(na.value = 'transparent') +
-  ggtitle('Spread of Pixel-level Count of RTS Within Euclidean Distance of 3 Std Dev Across Hydrothermal Zones')
-
 # Mean Distance
 ggplot() +
   geom_spatraster(data = euc_dist, aes(fill = mean_dist)) +
@@ -171,9 +152,9 @@ ggplot() +
 
 ```{r}
 count_0 = euc_dist |>
-  subset(1:3) |>
+  subset(1:2) |>
   classify(matrix(c(0, 0, 1, 1, Inf, 0), ncol = 3, byrow = TRUE))
-names(count_0) = c('pixel0_count_1_sum', 'pixel0_count_2_sum', 'pixel0_count_3_sum')
+names(count_0) = c('pixel0_count_1_sum', 'pixel0_count_2_sum')
 
 zonal_0_sum = zonal(count_0,
                     vect(hydrothermal),
@@ -183,7 +164,7 @@ zonal_0_sum = zonal(count_0,
   st_as_sf() |>
   mutate(
     across(
-      pixel0_count_1_sum:pixel0_count_3_sum,
+      pixel0_count_1_sum:pixel0_count_2_sum,
       ~ as.numeric(.x / st_area(geometry)),
       .names = "{.col}_percent"
     )  )
@@ -210,17 +191,6 @@ ggplot() +
   geom_sf(data = zonal_0_sum, aes(color = pixel0_count_2_sum_percent, fill = pixel0_count_2_sum_percent)) +
   scale_color_viridis(na.value = 'transparent') +
   scale_fill_viridis(na.value = 'transparent')
-
-ggplot() +
-  geom_sf(data = zonal_0_sum, aes(color = pixel0_count_3_sum, fill = pixel0_count_3_sum)) +
-  scale_color_viridis(na.value = 'transparent') +
-  scale_fill_viridis(na.value = 'transparent')
-
-ggplot() +
-  geom_sf(data = zonal_0_sum, aes(color = pixel0_count_3_sum_percent, fill = pixel0_count_3_sum_percent)) +
-  scale_color_viridis(na.value = 'transparent') +
-  scale_fill_viridis(na.value = 'transparent')
-
 ```
 
 # PCA Environmental Space vs. RTS Environmental Space

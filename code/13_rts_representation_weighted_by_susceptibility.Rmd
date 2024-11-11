@@ -12,6 +12,7 @@ library(terra)
 library(tidyterra)
 library(sf)
 library(viridis)
+library(bestNormalize)
 library(tidyverse)
 ```
 
@@ -23,11 +24,10 @@ theme_set(theme_bw())
 # Load Data
 
 ```{r}
-rts_probability = rast('./sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1.tif')
-rts_probability = median(rts_probability[[1:10]]/10)
-rts_susceptibility_m = rast('../makopoulou_data/Susceptibility_Map.tif') |>
+rts_probability = rast('./sdm/gbm_kfold_10_pred_tuned_median_v.1.0.1_filter.tif')
+rts_probability_m = rast('../makopoulou_data/makopoulou_data_download_20240916/GBM/gbm_aver_raster_calc_10_runs.tif') |>
   project(rts_probability, method = 'near')
-euc_dist = rast('./euclidean_distance/polygon_counts_1_2_3_v20.tif')
+euc_dist = rast('./euclidean_distance/polygon_counts_1_2_v.1.0.1.tif')
 ```
 
 ```{r}
@@ -38,83 +38,251 @@ world = world |>
 ```
 
 
-# Histogram of Euclidean Distance
+# Histograms
+
+Euclidean Distance
 
 ```{r}
 euc_dist_df = euc_dist |>
   subset('dist_2_count') |>
-  as.data.frame(xy = TRUE, na.rm = FALSE) |>
-  mutate(dist_2_count_rank = percent_rank(dist_2_count)*-1 + 1)
+  as.data.frame(xy = TRUE, na.rm = FALSE)# |>
+  # mutate(dist_2_count_rank = percent_rank(dist_2_count)*-1 + 1)
+
+bestNormalize(
+  euc_dist_df |>
+    slice_sample(prop = 0.1) |>
+    pull(dist_2_count)
+)
+
+euc_dist_df = euc_dist_df |>
+  mutate(
+    dist_2_count_norm = predict(orderNorm(dist_2_count)),
+    dist_2_count_standard = (
+      dist_2_count_norm - min(dist_2_count_norm, na.rm = TRUE)
+      )/max(
+        (dist_2_count_norm - min(dist_2_count_norm, na.rm = TRUE)), na.rm = TRUE
+        )
+  )
 ```
 
 ```{r}
 ggplot(euc_dist_df,
-       aes(x = dist_2_count_rank)) +
+       aes(x = dist_2_count_standard)) +
   geom_histogram()
 ```
 
+RTS Probability (Woodwell)
+
+```{r}
+rts_prob_df = rts_probability |>
+  as.data.frame(xy = TRUE, na.rm = FALSE)# |>
+  # mutate(dist_2_count_rank = percent_rank(dist_2_count)*-1 + 1)
+
+bestNormalize(
+  rts_prob_df |>
+    slice_sample(prop = 0.1) |>
+    pull(median)
+)
+
+rts_prob_df = rts_prob_df |>
+  mutate(
+    rts_prob_norm = predict(orderNorm(median)),
+    rts_prob_standard = (
+      rts_prob_norm - min(rts_prob_norm, na.rm = TRUE)
+    )/max(
+      (rts_prob_norm - min(rts_prob_norm, na.rm = TRUE)), na.rm = TRUE
+    )
+  )
+```
+
+```{r}
+ggplot(rts_prob_df,
+       aes(x = rts_prob_standard)) +
+  geom_histogram()
+```
+
+RTS Probability (Makopoulou)
+
+```{r}
+rts_prob_df_m = rts_probability_m |>
+  as.data.frame(xy = TRUE, na.rm = FALSE)# |>
+  # mutate(dist_2_count_rank = percent_rank(dist_2_count)*-1 + 1)
+
+bestNormalize(
+  rts_prob_df_m |>
+    slice_sample(prop = 0.1) |>
+    pull(gbm_1_extr)
+)
+
+rts_prob_df_m = rts_prob_df_m |>
+  mutate(
+    rts_prob_norm = predict(orderNorm(gbm_1_extr)),
+    rts_prob_standard = (
+      rts_prob_norm - min(rts_prob_norm, na.rm = TRUE)
+    )/max(
+      (rts_prob_norm - min(rts_prob_norm, na.rm = TRUE)), na.rm = TRUE
+    )
+  )
+```
+
+```{r}
+ggplot(rts_prob_df_m,
+       aes(x = rts_prob_standard)) +
+  geom_histogram()
+```
 
 # Weight RTS Representation
 
 ```{r}
-rts_rep_weighted = (
-  euc_dist[['dist_2_count']]/
-    as.numeric(
-      global(euc_dist[['dist_2_count']], 
-             fun = 'max', 
-             na.rm = TRUE)
-      )*-1 + 1
-  )
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(data = sqrt(euc_dist[[2]])) +
+  scale_fill_viridis(name = 'Square Root\nPolygon Count',
+                     na.value = 'transparent') +
+  coord_sf(expand = FALSE) +
+  ggtitle('Square Root Count of RTS w/in 2 std dev')
+
+```
+
+```{r}
+# rescale euclidean distance
+euc_dist_rescale = euc_dist[['dist_2_count']]
+values(euc_dist_rescale) = predict(orderNorm(values(euc_dist_rescale)))
+euc_dist_rescale = (
+  euc_dist_rescale - as.numeric(
+    global(euc_dist_rescale, fun = 'min', na.rm = TRUE)
+    )
+)
+euc_dist_rescale = euc_dist_rescale/as.numeric(
+  global(
+   euc_dist_rescale,
+    fun = 'max',
+    na.rm = TRUE)
+)
+
+# rescale RTS probability
+rts_prob_rescale = rts_probability
+names(rts_prob_rescale) = c('rts_prob')
+values(rts_prob_rescale) = predict(orderNorm(values(rts_prob_rescale)))
+rts_prob_rescale = (
+  rts_prob_rescale - as.numeric(
+    global(rts_prob_rescale, fun = 'min', na.rm = TRUE)
+    )
+)
+rts_prob_rescale = rts_prob_rescale/as.numeric(
+  global(
+   rts_prob_rescale,
+    fun = 'max',
+    na.rm = TRUE)
+)
 
 # # Alternate approach using percentiles
 # rts_rep_weighted = euc_dist[['dist_2_count']]
 # values(rts_rep_weighted) = euc_dist_df$dist_2_count_rank
 
-rts_rep_weighted = rts_rep_weighted*rts_probability/100
+rts_rep_weighted = euc_dist_rescale*rts_prob_rescale
+rts_rep_weighted = rts_rep_weighted/minmax(rts_rep_weighted)[2]
+names(rts_rep_weighted) = c('rts_data_need')
 
 # writeRaster(
 #   rts_rep_weighted,
-#   './data_gaps/rts_data_gaps.tif'
+#   './data_gaps/rts_data_gaps_filter.tif'
+#   )
+# rts_rep_weighted = rast('./data_gaps/rts_data_gaps_filter.tif')
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(data = rts_rep_weighted,
+                  maxcell = 1e+07) +
+  scale_fill_viridis(name = 'Need for Data',
+                     limits = c(0, 1),
+                     na.value = 'transparent') +
+  coord_sf(expand = FALSE) +
+  ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Woodwell)')
+
+# ggsave('./figures/rts_knowledge_gaps_woodwell_filter.jpg',
+#        height = 6,
+#        width = 8)
+```
+
+```{r}
+# rescale RTS probability
+rts_prob_rescale_m = rts_probability_m
+names(rts_prob_rescale_m) = c('rts_prob')
+values(rts_prob_rescale_m) = predict(orderNorm(values(rts_prob_rescale_m)))
+rts_prob_rescale_m = (
+  rts_prob_rescale_m - as.numeric(
+    global(rts_prob_rescale_m, fun = 'min', na.rm = TRUE)
+    )
+)
+rts_prob_rescale_m = rts_prob_rescale_m/as.numeric(
+  global(
+   rts_prob_rescale_m,
+    fun = 'max',
+    na.rm = TRUE)
+)
+
+rts_rep_weighted_m = euc_dist_rescale*rts_probability_rescale_m
+rts_rep_weighted_m = rts_rep_weighted_m/minmax(rts_rep_weighted_m)[2]
+names(rts_rep_weighted_m) = c('rts_data_need')
+
+# writeRaster(
+#   rts_rep_weighted_m,
+#   './data_gaps/rts_data_gaps_makopoulou.tif'
 #   )
 ```
 
 ```{r}
 ggplot() +
   geom_sf(data = world) +
-  geom_spatraster(data = rts_rep_weighted) +
-  scale_fill_viridis(name = 'Need for Data',
-                     limits = c(0, 1),
-                     na.value = 'transparent') +
-  coord_sf(expand = FALSE) +
-  ggtitle('RTS Knowledge Gaps Weighted by RTS Susceptibility (Woodwell)')
-
-# ggsave('./figures/rts_knowledge_gaps_woodwell.jpg',
-#        height = 6,
-#        width = 8)
-```
-
-```{r}
-rts_rep_weighted_m = (
-  euc_dist[['dist_2_count']]/
-    as.numeric(
-      global(euc_dist[['dist_2_count']], 
-             fun = 'max', 
-             na.rm = TRUE)
-      )*-1 + 1
-  )
-rts_rep_weighted_m = rts_rep_weighted_m*rts_susceptibility_m/5
-```
-
-```{r}
-ggplot() +
-  geom_sf(data = world) +
-  geom_spatraster(data = rts_rep_weighted_m) +
+  geom_spatraster(data = rts_rep_weighted_m,
+                  maxcell = 1e+07) +
   scale_fill_viridis(name = 'Need for Data',
                      na.value = 'transparent') +
   coord_sf(expand = FALSE) +
-  ggtitle('RTS Knowledge Gaps Weighted by RTS Susceptibility (Makopoulou)')
+  ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Makopoulou)')
 
 # ggsave('./figures/rts_knowledge_gaps_makopoulou.jpg',
 #        height = 6,
 #        width = 8)
 ```
+
+```{r}
+ggplot(rts_rep_weighted |> as.data.frame(xy = TRUE, na.rm = TRUE),
+       aes(x = rts_data_need)) +
+  geom_histogram()
+
+ggplot(rts_rep_weighted_m |> as.data.frame(xy = TRUE, na.rm = TRUE),
+       aes(x = rts_data_need)) +
+  geom_histogram()
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(data = rts_rep_weighted > 0.3,
+                  maxcell = 1e+07) +
+  scale_fill_viridis(name = 'Need for Data',
+                     discrete = TRUE,
+                     na.value = 'transparent',
+                     labels = c('High', 'Low'),
+                     na.translate = FALSE) +
+  coord_sf(expand = FALSE) +
+  ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Woodwell)')
+
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(data = rts_rep_weighted_m > 0.3,
+                  maxcell = 1e+07) +
+  scale_fill_viridis(name = 'Need for Data',
+                     discrete = TRUE,
+                     na.value = 'transparent',
+                     labels = c('High', 'Low'),
+                     na.translate = FALSE) +
+  coord_sf(expand = FALSE) +
+  ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Makopoulou)')
+
+```
+

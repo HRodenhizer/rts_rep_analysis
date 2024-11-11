@@ -26,7 +26,7 @@ theme_set(theme_bw())
 rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined_class_v.1.0.1.tif')
 rts_susceptibility_m = rast('../makopoulou_data/Susceptibility_Map.tif') |>
   project(rts_susceptibility, method = 'near')
-rts_prob = rast('./sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1.tif')
+rts_prob = rast('./sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1_filter.tif')
 rts_prob = median(rts_prob[[1:10]]/10)
 rts_prob_m = rast('../makopoulou_data/makopoulou_data_download_20240916/GBM/gbm_aver_raster_calc_10_runs.tif') |>
   project(rts_prob, method = 'near')
@@ -270,6 +270,10 @@ ggplot() +
   ) +
   coord_sf(expand = FALSE) +
   ggtitle('RTS Susceptibility Difference (Makopoulou - Woodwell)')
+
+# ggsave('./figures/rts_susceptibility_diff.jpg',
+#        height = 6,
+#        width = 8)
 ```
 
 ```{r}
@@ -317,10 +321,6 @@ ggplot() +
   # ) +
   coord_sf(expand = FALSE) +
   ggtitle('RTS Probability Difference (Makopoulou - Woodwell)')
-
-# ggsave('./figures/rts_susceptibility_diff.jpg',
-#        height = 6,
-#        width = 8)
 ```
 
 ## Differences Due to Training Data Differences
@@ -454,21 +454,6 @@ rts_pca_df_summary = rts_pca_df |>
     value_sd = sd(value, na.rm = TRUE),
     .by = c(prob_diff_round, prob_diff_class, pc)
   )
-```
-
-```{r}
-ggplot(
-  rts_pca_df,
-       aes(x = pc, 
-           y = value, 
-           color = prob_diff_class, 
-           group = interaction(prob_diff_class, pc))
-  ) +
-  geom_boxplot(position = position_dodge()) +
-  scale_y_continuous(name = 'PC Score') +
-  scale_color_viridis(name = 'RTS\nProbability\nDifference',
-                      discrete = TRUE) +
-  theme(axis.title.x = element_blank())
 ```
 
 ```{r}
@@ -607,7 +592,7 @@ ggplot(
 #        width = 6.5)
 ```
 
-## Model Environmental Variables Relative to RTS Probability Difference
+## Makopoulou Model Environmental Variables Relative to RTS Probability Difference
 
 ```{r}
 m_env_df = m_env[[1:6]] |>
