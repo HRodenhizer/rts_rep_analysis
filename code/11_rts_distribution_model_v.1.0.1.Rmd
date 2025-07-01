@@ -5,7 +5,7 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 
-# Load Libraries
+# Load Packages
 
 ```{r}
 library(biomod2)
@@ -196,7 +196,45 @@ Combine Presence and Absence Data
 #   arts_grid,
 #   './sdm/arts_grid_filter.csv'
 # )
-# arts_grid = read_csv('./sdm/arts_grid_filter.csv')
+arts_grid = read_csv('./sdm/arts_grid_filter.csv')
+```
+
+
+```{r}
+arts_shuffle = map(
+  1:10,
+  ~ arts_grid |>
+    st_as_sf(coords = c('x', 'y'), crs = 3413) |>
+    slice_sample(n = nrow(arts_grid), replace = FALSE)
+)
+
+arts_shuffle = map(
+  arts_shuffle,
+  ~ .x |>
+    as_Spatial() |>
+    sp::remove.duplicates(zero = 2000) |> # remove points within 2 km of other points
+    st_as_sf()
+)
+
+arts_cal = map(
+  arts_shuffle,
+  ~ .x |>
+    slice_head(prop = 0.8) |>
+    as_Spatial()
+)
+  
+arts_val = map(
+  arts_shuffle,
+  ~ .x |>
+    slice_tail(prop = 0.2) |>
+    as_Spatial()
+)
+
+zd = map2(
+  arts_cal,
+  arts_val,
+  ~ sp::zerodist2(.x, .y, zero = 10000)
+)
 ```
 
 # Format Data for SDM
