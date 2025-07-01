@@ -22,8 +22,8 @@ library(tidyverse)
 
 ```{r}
 arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.1/ARTS_main_dataset_v.1.0.1.geojson') |>
-  distinct() |>
-  st_make_valid() 
+  st_make_valid() |>
+  distinct() 
 arts = arts |>
   mutate(
     replicate = arts |>
