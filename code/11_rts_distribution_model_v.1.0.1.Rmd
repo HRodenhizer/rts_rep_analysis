@@ -27,8 +27,8 @@ theme_set(theme_bw())
 pca = rast('./pca/pca.tif')
 
 arts = st_read('../ARTS/ARTS_main_dataset/v.1.0.1/ARTS_main_dataset_v.1.0.1.geojson') |>
-  distinct() |>
   st_make_valid() |>
+  distinct() |>
   # keep one polygon per RTS only
   filter(CentroidLat == first(CentroidLat),
          .by = UID)
@@ -194,47 +194,9 @@ Combine Presence and Absence Data
 # 
 # write_csv(
 #   arts_grid,
-#   './sdm/arts_grid_filter.csv'
+#   './sdm/arts_grid_filter_v.1.0.1.csv'
 # )
-arts_grid = read_csv('./sdm/arts_grid_filter.csv')
-```
-
-
-```{r}
-arts_shuffle = map(
-  1:10,
-  ~ arts_grid |>
-    st_as_sf(coords = c('x', 'y'), crs = 3413) |>
-    slice_sample(n = nrow(arts_grid), replace = FALSE)
-)
-
-arts_shuffle = map(
-  arts_shuffle,
-  ~ .x |>
-    as_Spatial() |>
-    sp::remove.duplicates(zero = 2000) |> # remove points within 2 km of other points
-    st_as_sf()
-)
-
-arts_cal = map(
-  arts_shuffle,
-  ~ .x |>
-    slice_head(prop = 0.8) |>
-    as_Spatial()
-)
-  
-arts_val = map(
-  arts_shuffle,
-  ~ .x |>
-    slice_tail(prop = 0.2) |>
-    as_Spatial()
-)
-
-zd = map2(
-  arts_cal,
-  arts_val,
-  ~ sp::zerodist2(.x, .y, zero = 10000)
-)
+arts_grid = read_csv('./sdm/arts_grid_filter_v.1.0.1.csv')
 ```
 
 # Format Data for SDM
@@ -330,7 +292,8 @@ model_eval = tibble(rts_model@models.evaluation@val)
 model_eval_summary = model_eval |>
   filter(full.name != 'rts_allData_allRun_GBM') |>
   summarise(across(cutoff:validation,
-                   list(mean = mean, sd = sd),
+                   list(mean = ~ mean(.x, na.rm = TRUE), 
+                        sd = ~ sd(.x, na.rm = TRUE)),
                    na.rm = TRUE),
             .by = c(metric.eval)) |>
   pivot_longer(cols = cutoff_mean:validation_sd) |>
@@ -473,34 +436,49 @@ rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred_tuned_v.1.0.1_filter.rds')
 #             './sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1_filter.tif')
 
 rts_susceptibility = rast('./sdm/gbm_kfold_10_pred_tuned_combined_v.1.0.1_filter.tif')
-rts_probability_median = median(rts_susceptibility[[1:10]]/10)
+# rts_probability_median = median(rts_susceptibility[[1:10]]/10)
 
 # writeRaster(rts_probability_median,
 #             './sdm/gbm_kfold_10_pred_tuned_median_v.1.0.1_filter.tif')
+rts_probability_median = rast('./sdm/gbm_kfold_10_pred_tuned_median_v.1.0.1_filter.tif')
 ```
 
 ```{r}
 ggplot() +
-  geom_sf(data = world) +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'gray95') +
   geom_spatraster(data = rts_probability_median,
                   maxcell = 1e+07) +
   scale_fill_viridis(name = 'RTS Probability\n(%)',
                      limits = c(0, 100),
                      na.value = 'transparent') +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'transparent') +
   coord_sf(expand = FALSE)
 
-# ggsave('./figures/rts_probability_median_filter.jpg',
+# ggsave('./figures/rts_probability_median_filter_v.1.0.1.jpg',
 #        height = 5,
 #        width = 6.5)
 
 ggplot() +
-  geom_sf(data = world) +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'gray95') +
   geom_spatraster(data = rts_probability_median,
                   # maxcell = 1e+07
                   ) +
   scale_fill_viridis(name = 'RTS Probability\n(%)',
                      limits = c(0, 100),
                      na.value = 'transparent') +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'transparent') +
   geom_sf(data = arts |>
             filter(TrainClass == 'Positive'),
           color = 'black',
@@ -513,11 +491,11 @@ ggplot() +
     # ylim = c(-600000, -550000)
   )
 
-# bug makes the fill not line up with the outline when saving to jpg
-# ggsave('./figures/rts_probability_median_filter_w_arts.jpg',
+# # bug makes the fill not line up with the outline when saving to jpg
+# ggsave('./figures/rts_probability_median_filter_w_arts_v.1.0.1.jpg',
 #        height = 5,
 #        width = 6.5)
-# ggsave('./figures/rts_probability_median_filter_w_arts.pdf',
+# ggsave('./figures/rts_probability_median_filter_w_arts_v.1.0.1.pdf',
 #        height = 5,
 #        width = 6.5)
 ```
@@ -562,7 +540,10 @@ levels(rts_susceptibility_class) = tibble(
 
 ```{r, fig.height = 6, fig.width = 6.5}
 ggplot() +
-  geom_sf(data = world) +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'gray95') +
   geom_spatraster(
     data = rts_susceptibility_class,
     maxcell = 1e+07
@@ -579,16 +560,20 @@ ggplot() +
   #                              '#CC0000'),
   #                   na.value = 'transparent',
   #                   na.translate = FALSE) +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'transparent') +
   coord_sf(expand = FALSE) +
   theme(legend.position = 'inside',
         legend.justification = c(1, 0),
         legend.position.inside = c(0.998, 0.002))
 
-# ggsave('./figures/rts_susceptibility_filter.jpg',
+# ggsave('./figures/rts_susceptibility_filter_v.1.0.1.jpg',
 #        height = 6,
 #        width = 6.5)
 
-# ggsave('./figures/rts_susceptibility_filter_blue_red.jpg',
+# ggsave('./figures/rts_susceptibility_filter_blue_red_v.1.0.1.jpg',
 #        height = 6,
 #        width = 6.5)
 ```
@@ -618,12 +603,15 @@ levels(rts_presence_pred) = tibble(
 )
 
 # writeRaster(rts_presence_pred,
-#             './sdm/rts_presence_pred_filter.tif')
+#             './sdm/rts_presence_pred_filter_v.1.0.1.tif')
 ```
 
 ```{r}
 ggplot() +
-  geom_sf(data = world) +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'gray95') +
   geom_spatraster(
     data = rts_presence_pred,
     maxcell = 1e+07
@@ -632,12 +620,16 @@ ggplot() +
                      discrete = TRUE,
                      na.value = 'transparent',
                      na.translate = FALSE) +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'transparent') +
   coord_sf(expand = FALSE) +
   theme(legend.position = 'inside',
         legend.justification = c(1, 0),
         legend.position.inside = c(0.998, 0.002))
 
-# ggsave('./figures/rts_presence_pred_filter.jpg',
+# ggsave('./figures/rts_presence_pred_filter_v.1.0.1.jpg',
 #        height = 6,
 #        width = 6.5)
 ```
@@ -650,7 +642,10 @@ rts_cov = stdev(rts_susceptibility[[1:10]])/mean(rts_susceptibility[[1:10]])
 
 ```{r}
 ggplot() +
-  geom_sf(data = world) +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'gray95') +
   geom_spatraster(
     data = rts_cov,
     maxcell = 1e+07
@@ -662,13 +657,17 @@ ggplot() +
   #                     low = '#FFF5DD',
   #                     high = '#990000',
   #                     na.value = 'transparent') +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'transparent') +
   coord_sf(expand = FALSE)
 
-# ggsave('./figures/rts_coefficient_of_variation_filter.jpg',
+# ggsave('./figures/rts_coefficient_of_variation_filter_v.1.0.1.jpg',
 #        height = 5,
 #        width = 6.5)
 
-# ggsave('./figures/rts_coefficient_of_variation_filter_red.jpg',
+# ggsave('./figures/rts_coefficient_of_variation_filter_red_v.1.0.1.jpg',
 #        height = 5,
 #        width = 6.5)
 ```

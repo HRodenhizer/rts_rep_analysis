@@ -254,17 +254,30 @@ names(euc_dist_rast) = c('dist_1_count', 'dist_2_count', 'mean_dist')
 writeRaster(euc_dist_rast, './euclidean_distance/polygon_counts_1_2_v.1.0.1.tif')
 ```
 
+
+### Plot
+
+```{r}
+euc_dist_rast = rast('./euclidean_distance/polygon_counts_1_2_v.1.0.1.tif')
+world = world |>
+  st_transform(3413) |>
+  st_crop(ext(euc_dist_rast))
+```
+
 ```{r}
 ggplot() +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'gray95') +
   geom_spatraster(data = euc_dist_rast |>
-                    subset(1:3)) +
+                    subset(1:3),
+                  maxcell = 1e+07) +
   scale_fill_viridis(name = 'Polygon Count',
                      na.value = 'transparent',
                      # limits = c(0, 100),
                      oob = scales::squish) +
-  geom_sf(data = world |>
-            st_transform(3413) |>
-            st_crop(ext(euc_dist_rast)), 
+  geom_sf(data = world, 
           aes(geometry = geometry),
           inherit.aes = FALSE,
           fill = 'transparent') +
@@ -280,16 +293,18 @@ ggplot() +
 #        height = 6.5, width = 6.5)
 
 ggplot() +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'gray95') +
   geom_spatraster(data = euc_dist_rast |>
-                    subset(2)) +
+                    subset(2),
+                  maxcell = 1e+07) +
   scale_fill_viridis(name = 'Polygon Count\n(Dist = 2)',
                      na.value = 'transparent',
                      # limits = c(0, 15),
                      oob = scales::squish) +
-  geom_sf(data = world |>
-            st_transform(3413) |>
-            st_crop(ext(euc_dist_rast)), 
-          aes(geometry = geometry),
+  geom_sf(data = world,
           inherit.aes = FALSE,
           fill = 'transparent') +
   facet_wrap(~lyr, ncol = 2) +
@@ -304,15 +319,18 @@ ggplot() +
 #        height = 6.5, width = 6.5)
 
 ggplot() +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'gray95') +
   geom_spatraster(data = euc_dist_rast |>
-                    subset(3)) +
+                    subset(3),
+                  maxcell = 1e+07) +
   scale_fill_viridis(name = 'Mean\nEuclidean\nDistance',
                      na.value = 'transparent',
                      limits = c(0, 15),
                      oob = scales::squish) +
-  geom_sf(data = world |>
-            st_transform(3413) |>
-            st_crop(ext(euc_dist_rast)), 
+  geom_sf(data = world, 
           aes(geometry = geometry),
           inherit.aes = FALSE,
           fill = 'transparent') +
@@ -400,4 +418,5 @@ ggplot() +
         legend.justification = c(1, 0))
 
 # ggsave('./figures/euc_dist_poly_1.jpg',
-#        height = 6, width = 6.
+#        height = 6, width = 6)
+```
