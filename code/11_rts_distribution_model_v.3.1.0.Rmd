@@ -634,6 +634,23 @@ ggplot() +
 # ggsave('./figures/rts_probability_median_filter_w_arts_v.3.1.0.pdf',
 #        height = 5,
 #        width = 6.5)
+
+ggplot() +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'gray95') +
+  geom_spatraster(data = rts_prob_m,
+                  maxcell = 1e+07) +
+  scale_fill_viridis(name = 'RTS Probability\n(%)',
+                     limits = c(0, 100),
+                     na.value = 'transparent') +
+  geom_sf(data = world, 
+          aes(geometry = geometry),
+          inherit.aes = FALSE,
+          fill = 'transparent') +
+  coord_sf(expand = FALSE)
+
 ```
 
 ## v.3.1.0 vs. v.1.0.1
@@ -774,6 +791,29 @@ levels(rts_presence_pred) = tibble(
 
 # writeRaster(rts_presence_pred,
 #             './sdm/rts_presence_pred_filter_v.3.1.0.tif')
+```
+
+```{r}
+rts_area = zonal(
+  cellSize(rts_presence_pred), 
+  rts_presence_pred,
+  fun = sum
+)
+
+rts_area = rts_area |>
+  mutate(area = area/(1000*1000)) # convert to km^2 from m^2
+
+rts_area
+
+(
+  rts_area |>
+    filter(rts_presence == "RTS") |>
+    pull(area)
+) / (
+  rts_area |>
+    summarise(area = sum(area)) |>
+    pull(area)
+)
 ```
 
 ```{r}
