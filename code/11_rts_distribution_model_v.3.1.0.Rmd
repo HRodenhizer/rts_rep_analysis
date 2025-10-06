@@ -50,6 +50,11 @@ arctic_boreal = st_read(
   '../../tundra_and_boreal_domain/tundra_and_boreal.shp'
 ) |>
   st_make_valid()
+
+permafrost = st_read(
+  '../../tundra_and_boreal_domain/tundra_and_boreal_Dissolved_permafrost_only/tundra_and_boreal_Dissolved_permafrost_only.shp'
+) |>
+  st_make_valid()
 ```
 
 
@@ -872,39 +877,80 @@ levels(rts_presence_pred) = tibble(
   rts_presence = c('No RTS', 'RTS')
 )
 
+# Multiple cut-offs for comparison
+cutoffs = seq(10, 50, by = 10)
+
+classify_rts = function(prediction, cutoff) {
+  rts_presence_pred = prediction |>
+    classify(
+      rcl = matrix(
+        c(0, cutoff, 0, cutoff, 1000, 1),
+        byrow = TRUE,
+        ncol = 3
+      )
+    )
+
+  levels(rts_presence_pred) = tibble(
+    id = seq(0, 1),
+    rts_presence = c('No RTS', 'RTS')
+  )
+
+  return(rts_presence_pred)
+}
+
+rts_presence_list = map(
+  cutoffs,
+  ~ classify_rts(rts_probability_median, .x)
+)
+
 # writeRaster(rts_presence_pred,
 #             './sdm/rts_presence_pred_filter_v.3.1.0.tif')
 ```
 
 ```{r}
-rts_area = zonal(
-  cellSize(rts_presence_pred),
-  rts_presence_pred,
-  fun = sum
+rts_area = map2_df(
+  rts_presence_list,
+  cutoffs,
+  ~ zonal(
+    cellSize(.x),
+    .x,
+    fun = sum
+  ) |>
+    mutate(
+      area = area / (1000 * 1000),
+      cutoff = .y
+    ) # convert to km^2 from m^2
 )
 
 rts_area = rts_area |>
-  mutate(area = area / (1000 * 1000)) # convert to km^2 from m^2
-
-rts_area
-
-# Percent of our study region susceptible to RTS (about 5%)
-(rts_area |>
+  mutate(
+    susceptible_percent_roi = area / sum(area),
+    .by = cutoff
+  ) |>
   filter(rts_presence == "RTS") |>
-  pull(area)) /
-  (rts_area |>
-    summarise(area = sum(area)) |>
-    pull(area))
+  mutate(
+    susceptible_percent_arctic_boreal = area /
+      as.numeric(
+        arctic_boreal |>
+          st_transform(crs = 3413) |>
+          mutate(area = st_area(arctic_boreal) / (1000 * 1000)) |> # convert to km^2 from m^2
+          summarise(area = sum(area)) |>
+          pull(area)
+      ),
+    susceptible_percent_permafrost = area /
+      as.numeric(
+        permafrost |>
+          st_transform(crs = 3413) |>
+          mutate(area = st_area(permafrost) / (1000 * 1000)) |> # convert to km^2 from m^2
+          summarise(area = sum(area)) |>
+          pull(area)
+      )
+  )
 
-# Percent of Arctic Boreal Region susceptible to RTS (about 3%)
-(rts_area |>
-  filter(rts_presence == "RTS") |>
-  pull(area)) /
-  (arctic_boreal |>
-    st_transform(crs = 3413) |>
-    mutate(area = st_area(arctic_boreal) / (1000 * 1000)) |> # convert to km^2 from m^2
-    summarise(area = sum(area)) |>
-    pull(area))
+# write_csv(
+#   rts_area,
+#   "./tables/rts_coverage.csv"
+# )
 ```
 
 ```{r}
