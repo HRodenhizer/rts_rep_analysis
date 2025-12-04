@@ -68,7 +68,11 @@ ggplot() +
           size = 0.2,
           linewidth = 1,
           alpha = 0.5) +
-  coord_sf(expand = FALSE)
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  )
 ```
 
 ```{r}
@@ -131,7 +135,11 @@ geom_spatraster isn't great for displaying this data, because the summarizing us
 #           color = 'black',
 #           fill = 'transparent') +
 #   scale_fill_viridis(na.value = 'transparent') +
-#   coord_sf(expand = FALSE)
+#   coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  )
 # 
 # ggplot() +
 #   geom_spatraster(
@@ -458,7 +466,11 @@ ggplot() +
           aes(geometry = geometry),
           inherit.aes = FALSE,
           fill = 'transparent') +
-  coord_sf(expand = FALSE)
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  )
 
 # ggsave('./figures/rts_probability_median_filter_v.1.0.1.jpg',
 #        height = 5,
@@ -564,7 +576,11 @@ ggplot() +
           aes(geometry = geometry),
           inherit.aes = FALSE,
           fill = 'transparent') +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   theme(legend.position = 'inside',
         legend.justification = c(1, 0),
         legend.position.inside = c(0.998, 0.002))
@@ -624,7 +640,11 @@ ggplot() +
           aes(geometry = geometry),
           inherit.aes = FALSE,
           fill = 'transparent') +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   theme(legend.position = 'inside',
         legend.justification = c(1, 0),
         legend.position.inside = c(0.998, 0.002))
@@ -661,7 +681,11 @@ ggplot() +
           aes(geometry = geometry),
           inherit.aes = FALSE,
           fill = 'transparent') +
-  coord_sf(expand = FALSE)
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  )
 
 # ggsave('./figures/rts_coefficient_of_variation_filter_v.1.0.1.jpg',
 #        height = 5,

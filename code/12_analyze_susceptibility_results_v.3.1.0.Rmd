@@ -303,7 +303,11 @@ ggplot() +
     data = training_data_merge |> filter(disagree == TRUE),
     aes(color = factor(arts))
   ) +
-  coord_sf(expand = FALSE)
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  )
 ```
 
 ## Map Difference
@@ -323,7 +327,11 @@ ggplot() +
     high = '#990000',
     na.value = 'transparent'
   ) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Probability Difference (Makopoulou - Woodwell)') +
   theme(
     legend.position = 'inside',
@@ -386,7 +394,11 @@ prob_diff_map_w_points = ggplot() +
   #     7, 9
   #   )
   # ) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Probability Difference (Makopoulou - Woodwell)')
 prob_diff_map_w_points
 ```
@@ -501,7 +513,11 @@ prob_diff_map_w_points +
     fill = "transparent",
     linewidth = 0.5
   ) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   inset_element(
     ak_ca_map,
     left = left,
@@ -538,7 +554,11 @@ prob_diff_map_w_points +
     fill = "transparent",
     linewidth = 0.5
   ) +
-  coord_sf(expand = FALSE)) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  )) +
   ((((ak_ca_map | lena_map) +
     plot_layout(widths = unit(c(1, -1), c("null", "null")))) /
     yg_map) +
@@ -559,7 +579,11 @@ prob_diff_map_w_points +
     fill = "transparent",
     linewidth = 0.5
   ) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   theme(
     legend.direction = "horizontal",
     plot.title = element_blank()
@@ -583,7 +607,11 @@ prob_diff_map_w_points +
     fill = "transparent",
     linewidth = 0.5
   ) +
-  coord_sf(expand = FALSE)) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  )) +
   ((ak_ca_map / yg_map) +
     plot_layout(heights = unit(c(1, -1), c("null", "null")))) +
   lena_map) +
@@ -972,7 +1000,11 @@ ggplot() +
   # geom_sf(data = rts_susceptibility_diff_extremes_poly,
   #         aes(color = susceptibility_class),
   #         fill = 'transparent') +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('Principal Components 2, 1, and 5 as RGB')
 
 # ggsave('./figures/top_predictors_rgb.jpg',

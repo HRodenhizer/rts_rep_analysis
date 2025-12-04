@@ -145,7 +145,11 @@ ggplot() +
   geom_spatraster(data = sqrt(euc_dist[[2]])) +
   scale_fill_viridis(name = 'Square Root\nPolygon Count',
                      na.value = 'transparent') +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('Square Root Count of RTS w/in 2 std dev')
 
 ```
@@ -216,7 +220,11 @@ ggplot() +
   scale_fill_viridis(name = 'Need for Data',
                      # limits = c(0, 1),
                      na.value = 'transparent') +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   facet_wrap(~lyr) +
   ggtitle('RTS Knowledge Gaps (RTS Probability - RTS Count)')
 
@@ -263,7 +271,11 @@ ggplot() +
                   maxcell = 1e+07) +
   scale_fill_viridis(name = 'Need for Data',
                      na.value = 'transparent') +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Makopoulou)')
 
 # ggsave('./figures/rts_knowledge_gaps_makopoulou.jpg',
@@ -291,7 +303,11 @@ ggplot() +
                      na.value = 'transparent',
                      labels = c('High', 'Low'),
                      na.translate = FALSE) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Woodwell)')
 
 ggplot() +
@@ -303,7 +319,11 @@ ggplot() +
                      na.value = 'transparent',
                      labels = c('High', 'Low'),
                      na.translate = FALSE) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Makopoulou)')
 
 ```

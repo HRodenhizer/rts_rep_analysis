@@ -260,7 +260,11 @@ ggplot() +
     high = '#990000',
     na.value = 'transparent'
   ) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Probability Difference (Makopoulou - Woodwell)') +
   theme(
     legend.position = 'inside',
@@ -285,7 +289,11 @@ ggplot() +
     high = '#990000',
     na.value = 'transparent'
   ) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Susceptibility Difference (Makopoulou - Woodwell)')
 
 # ggsave('./figures/rts_susceptibility_diff_v.1.0.1.jpg',
@@ -336,7 +344,11 @@ ggplot() +
   #     7, 9
   #   )
   # ) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Probability Difference (Makopoulou - Woodwell)')
 ```
 
@@ -710,7 +722,11 @@ ggplot() +
   # geom_sf(data = rts_susceptibility_diff_extremes_poly,
   #         aes(color = susceptibility_class),
   #         fill = 'transparent') +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('Principal Components 2, 1, and 5 as RGB')
 
 # ggsave('./figures/top_predictors_rgb.jpg',

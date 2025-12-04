@@ -363,13 +363,17 @@ ggplot() +
     na.value = 'transparent'
   ) +
   geom_sf(data = world, fill = "transparent") +
-  coord_sf(expand = FALSE)
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  )
 
-ggsave(
-  './figures/rts_data_need_woodwell_filter_v.1.0.1.jpg',
-  height = 6,
-  width = 8
-)
+# ggsave(
+#   './figures/rts_data_need_woodwell_filter_v.1.0.1.jpg',
+#   height = 6,
+#   width = 8
+# )
 
 ggplot() +
   geom_sf(data = world, fill = "gray95") +
@@ -384,7 +388,11 @@ ggplot() +
     na.value = 'transparent'
   ) +
   geom_sf(data = world, fill = "transparent") +
-  coord_sf(expand = FALSE)
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  )
 
 # ggsave(
 #   './figures/rts_data_need_woodwell_filter_v.3.1.0.jpg',
@@ -411,7 +419,11 @@ ggplot() +
     oob = scales::squish
   ) +
   geom_sf(data = world, fill = "transparent") +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   theme(axis.title = element_blank())
 
 # ggsave(
@@ -437,6 +449,7 @@ ggplot() +
     oob = scales::squish,
     guide = guide_colorbar(order = 1)
   ) +
+  geom_sf(data = world, fill = "transparent") +
   # new_scale_fill() +
   geom_hex(
     data = rts_train_centroid |>
@@ -445,13 +458,20 @@ ggplot() +
     aes(X, Y, color = after_stat(count)),
     fill = "transparent"
   ) +
-  scale_color_continuous(
+  scale_color_viridis(
     name = "Added RTS",
+    option = "G",
+    # begin = 0.5,
+    end = 0.7,
+    # direction = -1,
     guide = guide_legend(order = 2),
     trans = "log10"
   ) +
-  geom_sf(data = world, fill = "transparent") +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   theme(axis.title = element_blank())
 
 # ggsave(
@@ -479,7 +499,11 @@ ggplot() +
   geom_sf(data = world) +
   geom_spatraster(data = rts_rep_weighted_m, maxcell = 1e+07) +
   scale_fill_viridis(name = 'Need for Data', na.value = 'transparent') +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Makopoulou)')
 
 # ggsave('./figures/rts_data_need_makopoulou.jpg',
@@ -512,7 +536,11 @@ ggplot() +
     labels = c('High', 'Low'),
     na.translate = FALSE
   ) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Woodwell)')
 
 ggplot() +
@@ -525,7 +553,11 @@ ggplot() +
     labels = c('High', 'Low'),
     na.translate = FALSE
   ) +
-  coord_sf(expand = FALSE) +
+  coord_sf(
+    expand = FALSE,
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
+  ) +
   ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Makopoulou)')
 
 ```
