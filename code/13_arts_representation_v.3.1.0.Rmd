@@ -1,0 +1,532 @@
+---
+title: "RTS Representation"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load Packages
+
+```{r}
+library(terra)
+library(tidyterra)
+library(sf)
+library(viridis)
+library(bestNormalize)
+library(ggnewscale)
+library(tidyverse)
+```
+
+```{r}
+theme_set(theme_bw())
+```
+
+
+# Functions
+
+## calc_data_need()
+
+```{r}
+calc_data_need = function(prob_rast, dist_rast, new_name) {
+  data_need = prob_rast - dist_rast
+  data_need[data_need < 0] = 0
+  names(data_need) = c(new_name)
+
+  return(data_need)
+}
+```
+
+## normalize_raster()
+
+```{r}
+normalize_raster = function(input_rast) {
+  rast_rescale = input_rast
+
+  values(rast_rescale) = predict(
+    orderNorm(values(rast_rescale))
+  )
+
+  rast_rescale = (rast_rescale -
+    as.numeric(
+      global(rast_rescale, fun = 'min', na.rm = TRUE)
+    ))
+
+  rast_rescale = rast_rescale /
+    as.numeric(
+      global(
+        rast_rescale,
+        fun = 'max',
+        na.rm = TRUE
+      )
+    )
+
+  names(rast_rescale) = paste0(names(rast_rescale), "_rescale")
+
+  return(rast_rescale)
+}
+```
+
+## rename_inline
+
+```{r}
+rename_inline = function(obj, name_vec) {
+  names(obj) = name_vec
+  return(obj)
+}
+```
+
+
+# Load Data
+
+```{r}
+rts_prob = list(
+  rast('./sdm/gbm_kfold_10_pred_tuned_median_v.1.0.1_filter.tif') / 100,
+  rast('./sdm/gbm_kfold_10_pred_tuned_median_v.3.1.0_filter.tif') / 100
+) |>
+  map(
+    ~ .x |>
+      rename_inline(c("rts_prob"))
+  )
+names(rts_prob) = c("rts_prob_v1", "rts_prob_v3")
+
+rts_prob_m = rast(
+  '../makopoulou_data/makopoulou_data_download_20240916/GBM/gbm_aver_raster_calc_10_runs.tif'
+) |>
+  project(rts_prob[["rts_prob_v1"]], method = 'near')
+rts_prob_m = rts_prob_m / 1000
+names(rts_prob_m) = c("rts_prob")
+
+euc_dist = list(
+  rast('./euclidean_distance/polygon_counts_1_2_v.1.0.1.tif'),
+  rast('./euclidean_distance/polygon_counts_1_2_v.3.1.0.tif')
+)
+names(euc_dist) = c("euc_dist_v1", "euc_dist_v3")
+
+rts_train_new = st_read(
+  "./sdm/training_data/rts_train_new_v.3.1.0-v.1.0.1.geojson"
+)
+```
+
+```{r}
+world = rnaturalearth::ne_countries(scale = "large", returnclass = "sf")
+world = world |>
+  st_transform(3413) |>
+  st_crop(ext(rts_prob[["rts_prob_v1"]]))
+```
+
+# Prep Hex Layer of New RTS
+
+```{r}
+rts_train_centroid = rts_train_new %>%
+  st_centroid() %>%
+  bind_cols(st_coordinates(.))
+```
+
+
+# Histograms
+
+## Euclidean Distance
+
+What normalization method is best?
+
+```{r}
+euc_dist_df = map(
+  euc_dist,
+  ~ .x |>
+    subset('dist_2_count') |>
+    as.data.frame(xy = TRUE, na.rm = FALSE)
+)
+
+# bestNormalize(
+#   euc_dist_df |>
+#     slice_sample(prop = 0.1) |>
+#     pull(dist_2_count)
+# )
+```
+
+Normalize
+
+```{r}
+euc_dist_rescale = euc_dist |>
+  map(
+    ~ .x |>
+      select("dist_2_count") |>
+      normalize_raster()
+  )
+
+euc_dist_df = euc_dist_df |>
+  map2(
+    euc_dist_rescale,
+    ~ .x |>
+      full_join(
+        .y |>
+          as.data.frame(xy = TRUE, na.rm = FALSE),
+        by = c("x", "y")
+      )
+  )
+```
+
+Visualize
+
+```{r}
+max_dist_2_count = euc_dist_df |>
+  map(
+    ~ .x |>
+      pull(dist_2_count) |>
+      max(na.rm = TRUE)
+  )
+
+map2(
+  euc_dist_df,
+  max_dist_2_count,
+  ~ ggplot(.x) +
+    geom_histogram(
+      aes(x = dist_2_count / max_dist_2_count[[1]]),
+      color = "darkred",
+      fill = "darkred",
+      alpha = 0.5
+    ) +
+    geom_histogram(
+      aes(x = dist_2_count_rescale),
+      color = "cadetblue1",
+      fill = "cadetblue1",
+      alpha = 0.5
+    )
+)
+```
+
+## RTS Probability (Woodwell)
+
+What normalization method is best?
+
+```{r}
+rts_prob_df = rts_prob |>
+  map(
+    ~ .x |>
+      as.data.frame(xy = TRUE, na.rm = FALSE)
+  )
+
+# bestNormalize(
+#   rts_prob_df |>
+#     slice_sample(prop = 0.1) |>
+#     pull(median)
+# )
+```
+
+Normalize
+
+```{r}
+rts_prob_rescale = rts_prob |>
+  map(
+    ~ .x |>
+      normalize_raster()
+  )
+
+rts_prob_df = rts_prob_df |>
+  map2(
+    rts_prob_rescale,
+    ~ .x |>
+      full_join(
+        .y |>
+          as.data.frame(xy = TRUE, na.rm = FALSE),
+        by = c("x", "y")
+      )
+  )
+```
+
+Visualize
+
+```{r}
+map(
+  rts_prob_df,
+  ~ ggplot(.x) +
+    geom_histogram(
+      aes(x = rts_prob),
+      color = "darkred",
+      fill = "darkred",
+      alpha = 0.5
+    ) +
+    geom_histogram(
+      aes(x = rts_prob_rescale),
+      color = "cadetblue1",
+      fill = "cadetblue1",
+      alpha = 0.5
+    )
+)
+```
+
+## RTS Probability (Makopoulou)
+
+What normalization method is best?
+
+```{r}
+rts_prob_m_df = rts_prob_m |>
+  as.data.frame(xy = TRUE, na.rm = FALSE)
+
+# bestNormalize(
+#   rts_prob_m_df |>
+#     slice_sample(prop = 0.1) |>
+#     pull(gbm_1_extr)
+# )
+```
+
+Normalize
+
+```{r}
+rts_prob_m_rescale = rts_prob_m |>
+  normalize_raster()
+
+rts_prob_m_df = rts_prob_m_df |>
+  full_join(
+    rts_prob_m_rescale |>
+      as.data.frame(xy = TRUE, na.rm = FALSE),
+    by = c("x", "y")
+  )
+```
+
+Visualize
+
+```{r}
+ggplot(rts_prob_m_df) +
+  geom_histogram(
+    aes(x = rts_prob),
+    color = "darkred",
+    fill = "darkred",
+    alpha = 0.5
+  ) +
+  geom_histogram(
+    aes(x = rts_prob_rescale),
+    color = "cadetblue1",
+    fill = "cadetblue1",
+    alpha = 0.5
+  )
+```
+
+
+# Weight RTS Representation
+
+## Woodwell
+
+```{r}
+# rts_rep_v1 = c(
+#   calc_data_need(
+#     rts_prob_rescale[["rts_prob_v1"]],
+#     euc_dist_rescale[["euc_dist_v1"]],
+#     "data_need_rescale_both"
+#   ),
+#   calc_data_need(
+#     rts_prob[["rts_prob_v1"]],
+#     euc_dist_rescale[["euc_dist_v1"]],
+#     "data_need_rescale_dist"
+#   )
+# )
+
+# writeRaster(
+#   rts_rep_v1,
+#   './data_gaps/rts_data_gaps_filter_v.1.0.1.tif'
+#   )
+rts_rep_v1 = rast('./data_gaps/rts_data_gaps_filter_v.1.0.1.tif')
+
+# rts_rep_v3 = c(
+#   calc_data_need(
+#     rts_prob_rescale[["rts_prob_v3"]],
+#     euc_dist_rescale[["euc_dist_v3"]],
+#     "data_need_rescale_both"
+#   ),
+#   calc_data_need(
+#     rts_prob[["rts_prob_v3"]],
+#     euc_dist_rescale[["euc_dist_v3"]],
+#     "data_need_rescale_dist"
+#   )
+# )
+
+# writeRaster(
+#   rts_rep_v3,
+#   './data_gaps/rts_data_gaps_filter_v.3.1.0.tif'
+#   )
+rts_rep_v3 = rast('./data_gaps/rts_data_gaps_filter_v.3.1.0.tif')
+
+rts_rep_improvement = rts_rep_v3 - rts_rep_v1
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = world, fill = "gray95") +
+  geom_spatraster(
+    data = rts_rep_v1 |>
+      subset("data_need_rescale_both"),
+    maxcell = 1e+07
+  ) +
+  scale_fill_viridis(
+    name = 'Data Need\n[0,1]',
+    # limits = c(0, 1),
+    na.value = 'transparent'
+  ) +
+  geom_sf(data = world, fill = "transparent") +
+  coord_sf(expand = FALSE)
+
+ggsave(
+  './figures/rts_data_need_woodwell_filter_v.1.0.1.jpg',
+  height = 6,
+  width = 8
+)
+
+ggplot() +
+  geom_sf(data = world, fill = "gray95") +
+  geom_spatraster(
+    data = rts_rep_v3 |>
+      subset("data_need_rescale_both"),
+    maxcell = 1e+07
+  ) +
+  scale_fill_viridis(
+    name = 'Data Need\n[0,1]',
+    # limits = c(0, 1),
+    na.value = 'transparent'
+  ) +
+  geom_sf(data = world, fill = "transparent") +
+  coord_sf(expand = FALSE)
+
+# ggsave(
+#   './figures/rts_data_need_woodwell_filter_v.3.1.0.jpg',
+#   height = 6,
+#   width = 8
+# )
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = world, fill = "gray95") +
+  geom_spatraster(
+    data = rts_rep_improvement |>
+      subset("data_need_rescale_both"),
+    # maxcell = 1e+07
+  ) +
+  scale_fill_gradient2(
+    name = expression(atop(Delta ~ " Data Need", "(v3-v1)")),
+    limits = c(-0.5, 0.5),
+    low = '#0066CC',
+    mid = '#FFFFDD',
+    high = '#990000',
+    na.value = 'transparent',
+    oob = scales::squish
+  ) +
+  geom_sf(data = world, fill = "transparent") +
+  coord_sf(expand = FALSE) +
+  theme(axis.title = element_blank())
+
+# ggsave(
+#   './figures/rts_data_need_improvement.jpg',
+#   height = 6,
+#   width = 8
+# )
+
+ggplot() +
+  geom_sf(data = world, fill = "gray95") +
+  geom_spatraster(
+    data = rts_rep_improvement |>
+      subset("data_need_rescale_both"),
+    maxcell = 1e+07
+  ) +
+  scale_fill_gradient2(
+    name = expression(atop(Delta ~ " Data Need", "(v3-v1; [-1,1])")),
+    limits = c(-0.25, 0.25),
+    low = '#0066CC',
+    mid = '#FFFFDD',
+    high = '#990000',
+    na.value = 'transparent',
+    oob = scales::squish,
+    guide = guide_colorbar(order = 1)
+  ) +
+  # new_scale_fill() +
+  geom_hex(
+    data = rts_train_centroid |>
+      filter(TrainClass == "Positive") |>
+      mutate(count = 1),
+    aes(X, Y, color = after_stat(count)),
+    fill = "transparent"
+  ) +
+  scale_color_continuous(
+    name = "Added RTS",
+    guide = guide_legend(order = 2),
+    trans = "log10"
+  ) +
+  geom_sf(data = world, fill = "transparent") +
+  coord_sf(expand = FALSE) +
+  theme(axis.title = element_blank())
+
+# ggsave(
+#   './figures/rts_data_need_improvement.jpg',
+#   height = 6,
+#   width = 8
+# )
+```
+
+## Makopoulou
+
+```{r}
+rts_rep_m = euc_dist_rescale * rts_probability_rescale_m
+rts_rep_m = rts_rep_weighted_m / minmax(rts_rep_weighted_m)[2]
+names(rts_rep_weighted_m) = c('rts_data_need')
+
+# writeRaster(
+#   rts_rep_weighted_m,
+#   './data_gaps/rts_data_gaps_makopoulou.tif'
+#   )
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(data = rts_rep_weighted_m, maxcell = 1e+07) +
+  scale_fill_viridis(name = 'Need for Data', na.value = 'transparent') +
+  coord_sf(expand = FALSE) +
+  ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Makopoulou)')
+
+# ggsave('./figures/rts_data_need_makopoulou.jpg',
+#        height = 6,
+#        width = 8)
+```
+
+```{r}
+ggplot(
+  rts_rep_weighted |> as.data.frame(xy = TRUE, na.rm = TRUE),
+  aes(x = rts_data_need)
+) +
+  geom_histogram()
+
+ggplot(
+  rts_rep_weighted_m |> as.data.frame(xy = TRUE, na.rm = TRUE),
+  aes(x = rts_data_need)
+) +
+  geom_histogram()
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(data = rts_rep_weighted > 0.3, maxcell = 1e+07) +
+  scale_fill_viridis(
+    name = 'Need for Data',
+    discrete = TRUE,
+    na.value = 'transparent',
+    labels = c('High', 'Low'),
+    na.translate = FALSE
+  ) +
+  coord_sf(expand = FALSE) +
+  ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Woodwell)')
+
+ggplot() +
+  geom_sf(data = world) +
+  geom_spatraster(data = rts_rep_weighted_m > 0.3, maxcell = 1e+07) +
+  scale_fill_viridis(
+    name = 'Need for Data',
+    discrete = TRUE,
+    na.value = 'transparent',
+    labels = c('High', 'Low'),
+    na.translate = FALSE
+  ) +
+  coord_sf(expand = FALSE) +
+  ggtitle('RTS Knowledge Gaps Weighted by RTS Probability (Makopoulou)')
+
+```
+
