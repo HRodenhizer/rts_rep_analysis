@@ -273,6 +273,15 @@ artsv1_train_fig +
 ```
 
 
+# Prep Hex Layer of RTS
+
+```{r}
+arts_centroid = artsv3 %>%
+  st_filter(world_training_region) |>
+  st_centroid() %>%
+  bind_cols(st_coordinates(.))
+```
+
 # Aggregate RTS Delineations to Presence/Absence in 1 km Grid
 
 Presence Data
@@ -707,7 +716,25 @@ ggplot() +
   scale_fill_viridis(
     name = 'RTS Probability\n(%)',
     limits = c(0, 100),
-    na.value = 'transparent'
+    na.value = 'transparent',
+    guide = guide_colorbar(order = 1)
+  ) +
+  # new_scale_fill() +
+  geom_hex(
+    data = arts_centroid |>
+      filter(TrainClass == "Positive") |>
+      mutate(count = 1),
+    aes(X, Y, color = after_stat(count)),
+    fill = "transparent"
+  ) +
+  scale_color_viridis(
+    name = "RTS Count",
+    option = "G",
+    begin = 0.5,
+    # end = 0.8,
+    # direction = -1,
+    guide = guide_legend(order = 2),
+    trans = "log10"
   ) +
   geom_sf(
     data = world,
@@ -715,18 +742,18 @@ ggplot() +
     inherit.aes = FALSE,
     fill = 'transparent'
   ) +
-  geom_sf(
-    data = artsv3 |>
-      filter(TrainClass == 'Positive'),
-    color = 'black',
-    fill = 'black',
-    size = 0.5,
-    linewidth = 1
-  ) +
+  # geom_sf(
+  #   data = artsv3 |>
+  #     filter(TrainClass == 'Positive'),
+  #   color = 'black',
+  #   fill = 'black',
+  #   size = 0.5,
+  #   linewidth = 1
+  # ) +
   coord_sf(
     expand = FALSE,
-    # xlim = c(-1800000, -1750000),
-    # ylim = c(-600000, -550000)
+    xlim = c(-4600000, 4600000),
+    ylim = c(-4600000, 4600000)
   )
 
 # # bug makes the fill not line up with the outline when saving to jpg
