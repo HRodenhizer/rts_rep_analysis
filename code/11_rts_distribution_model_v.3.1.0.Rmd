@@ -13,6 +13,7 @@ library(sf)
 library(terra)
 library(tidyterra)
 library(viridis)
+library(ggnewscale)
 library(tidyverse)
 library(patchwork)
 ```
@@ -61,57 +62,85 @@ permafrost = st_read(
 # Approximate ROI from Positive RTS occurrences
 
 ```{r}
-# artsv1_pos = artsv1 |>
+# roi_v1 = artsv1 |>
 #   filter(TrainClass == 'Positive') |>
 #   st_buffer(dist = 100000) |>
 #   st_union()
 #
 # st_write(
-#   artsv1_pos,
+#   roi_v1,
 #   "./sdm/training_data/rts_train_roi_v.1.0.1.geojson"
 # )
-#
-# artsv1_filter = artsv1 |>
-#   st_filter(artsv1_pos,
+
+roi_v1 = st_read(
+  "./sdm/training_data/rts_train_roi_v.1.0.1.geojson"
+)
+
+# train_v1 = artsv1 |>
+#   st_filter(roi_v1,
 #             .predicate = st_within)
 #
 # st_write(
-#   artsv1_filter,
+#   train_v1,
 #   "./sdm/training_data/rts_train_v.1.0.1.geojson"
 # )
 
-artsv3_pos = artsv3 |>
-  filter(TrainClass == 'Positive') |>
-  st_buffer(dist = 100000) |>
-  st_union()
+train_v1 = st_read(
+  "./sdm/training_data/rts_train_v.1.0.1.geojson"
+)
+
+# roi_v3 = artsv3 |>
+#   filter(TrainClass == 'Positive') |>
+#   st_buffer(dist = 100000) |>
+#   st_union()
+
+roi_v3 = st_read(
+  "./sdm/training_data/rts_train_roi_v.3.1.0.geojson"
+)
 
 # st_write(
-#   artsv3_pos,
+#   roi_v3,
 #   "./sdm/training_data/rts_train_roi_v.3.1.0.geojson"
 # )
 
-artsv3_filter = artsv3 |>
-  st_filter(artsv3_pos, .predicate = st_within)
+roi_v3_v1_diff = roi_v1 |>
+  mutate(version = "Both") |>
+  bind_rows(
+    roi_v3 |>
+      st_difference(roi_v1) |>
+      mutate(version = 'v3 Only')
+  )
+
+# train_v3 = artsv3 |>
+#   st_filter(roi_v3, .predicate = st_within)
 
 # st_write(
-#   artsv3_filter,
+#   train_v3,
 #   "./sdm/training_data/rts_train_v.3.1.0.geojson"
 # )
 
-new_rts = artsv3_filter |>
-  anti_join(
-    artsv1_filter |>
-      st_drop_geometry()
-  )
+train_v3 = st_read(
+  "./sdm/training_data/rts_train_v.3.1.0.geojson"
+)
+
+# new_rts = train_v3 |>
+#   anti_join(
+#     train_v1 |>
+#       st_drop_geometry()
+#   )
 
 # st_write(
 #   new_rts,
 #   "./sdm/training_data/rts_train_new_v.3.1.0-v.1.0.1.geojson"
 # )
 
+new_rts = st_read(
+  "./sdm/training_data/rts_train_new_v.3.1.0-v.1.0.1.geojson"
+)
+
 world_training_region = world |>
   st_crop(
-    artsv3_pos |>
+    roi_v3 |>
       st_buffer(dist = 1000000, joinStyle = "MITRE") |>
       st_bbox()
   )
@@ -121,7 +150,14 @@ world_training_region = world |>
 artsv1_train_fig = ggplot() +
   geom_sf(data = world_training_region, fill = "gray95") +
   geom_sf(
-    data = artsv1_filter,
+    data = roi_v1,
+    linewidth = 0.2,
+    color = 'black',
+    fill = 'gray80',
+    alpha = 0.5
+  ) +
+  geom_sf(
+    data = train_v1,
     aes(
       color = TrainClass,
       fill = TrainClass
@@ -136,12 +172,6 @@ artsv1_train_fig = ggplot() +
   scale_fill_manual(
     name = "RTS Presence",
     values = c('cadetblue1', 'red4')
-  ) +
-  geom_sf(
-    data = artsv1_pos,
-    linewidth = 0.3,
-    color = 'black',
-    fill = 'transparent'
   ) +
   coord_sf(expand = FALSE) +
   theme(
@@ -152,7 +182,14 @@ artsv1_train_fig = ggplot() +
 artsv3_train_fig = ggplot() +
   geom_sf(data = world_training_region, fill = "gray95") +
   geom_sf(
-    data = artsv3_filter,
+    data = roi_v3,
+    linewidth = 0.2,
+    color = 'black',
+    fill = 'gray80',
+    alpha = 0.5
+  ) +
+  geom_sf(
+    data = train_v3,
     aes(
       color = TrainClass,
       fill = TrainClass
@@ -168,12 +205,6 @@ artsv3_train_fig = ggplot() +
     name = "RTS Presence",
     values = c('cadetblue1', 'red4')
   ) +
-  geom_sf(
-    data = artsv3_pos,
-    linewidth = 0.3,
-    color = 'black',
-    fill = 'transparent'
-  ) +
   coord_sf(expand = FALSE) +
   theme(
     legend.position = "none"
@@ -182,6 +213,20 @@ artsv3_train_fig = ggplot() +
 
 new_rts_train_fig = ggplot() +
   geom_sf(data = world_training_region, fill = "gray95") +
+  geom_sf(
+    data = roi_v3_v1_diff,
+    linewidth = 0.2,
+    aes(
+      fill = version
+    ),
+    color = "black",
+    alpha = 0.5
+  ) +
+  scale_fill_manual(
+    name = "Training Region\nDifference",
+    values = c("Both" = "gray80", "v3 Only" = "gold")
+  ) +
+  new_scale_fill() +
   geom_sf(
     data = new_rts,
     aes(
@@ -198,12 +243,6 @@ new_rts_train_fig = ggplot() +
   scale_fill_manual(
     name = "RTS Presence",
     values = c('cadetblue1', 'red4')
-  ) +
-  geom_sf(
-    data = artsv3_pos,
-    linewidth = 0.3,
-    color = 'black',
-    fill = 'transparent'
   ) +
   coord_sf(expand = FALSE) +
   facet_wrap(~"Added Training Data")
@@ -227,9 +266,9 @@ artsv1_train_fig +
 ```
 
 ```{r}
-# artsv1_filter |>
+# train_v1 |>
 #   count(.by = TrainClass)
-# artsv3_filter |>
+# train_v3 |>
 #   count(.by = TrainClass)
 ```
 
@@ -240,7 +279,7 @@ Presence Data
 
 ```{r}
 # arts_poly_rast = rasterizeGeom(
-#   vect(artsv3_filter %>%
+#   vect(train_v3 %>%
 #          filter(
 #            TrainClass == 'Positive' &
 #              (st_geometry_type(.) == 'POLYGON' | st_geometry_type(.) == 'MULTIPOLYGON'))
@@ -250,7 +289,7 @@ Presence Data
 # )
 #
 # arts_point_rast = rasterizeGeom(
-#   vect(artsv3_filter %>%
+#   vect(train_v3 %>%
 #          filter(
 #            TrainClass == 'Positive' &
 #              st_geometry_type(.) == 'POINT')
@@ -321,7 +360,7 @@ Absence Data
 
 ```{r}
 # arts_neg_rast = rasterize(
-#   vect(artsv3_filter %>%
+#   vect(train_v3 %>%
 #          filter(TrainClass == 'Negative') %>%
 #          st_centroid()),
 #   pca
@@ -611,13 +650,21 @@ rts_pred = readRDS('./sdm/rts_gbm_kfold_10_pred_tuned_v.3.1.0_filter.rds')
 rts_susceptibility = rast(
   './sdm/gbm_kfold_10_pred_tuned_combined_v.3.1.0_filter.tif'
 )
-# rts_probability_median = median(rts_susceptibility[[1:10]]/10)
+# rts_prob = median(rts_susceptibility[[1:10]]/10)
 
-# writeRaster(rts_probability_median,
+# writeRaster(rts_prob,
 #             './sdm/gbm_kfold_10_pred_tuned_median_v.3.1.0_filter.tif')
-rts_probability_median = rast(
+rts_prob = rast(
   './sdm/gbm_kfold_10_pred_tuned_median_v.3.1.0_filter.tif'
 )
+```
+
+```{r}
+rts_prob_m = rast(
+  '../makopoulou_data/makopoulou_data_download_20240916/GBM/gbm_aver_raster_calc_10_runs.tif'
+) |>
+  project(rts_prob, method = 'near')
+rts_prob_m = rts_prob_m / 10
 ```
 
 ```{r}
@@ -628,7 +675,7 @@ ggplot() +
     inherit.aes = FALSE,
     fill = 'gray95'
   ) +
-  geom_spatraster(data = rts_probability_median, maxcell = 1e+07) +
+  geom_spatraster(data = rts_prob, maxcell = 1e+07) +
   scale_fill_viridis(
     name = 'RTS Probability\n(%)',
     limits = c(0, 100),
@@ -654,8 +701,8 @@ ggplot() +
     fill = 'gray95'
   ) +
   geom_spatraster(
-    data = rts_probability_median,
-    # maxcell = 1e+07
+    data = rts_prob,
+    maxcell = 1e+07
   ) +
   scale_fill_viridis(
     name = 'RTS Probability\n(%)',
@@ -716,16 +763,16 @@ ggplot() +
 ## v.3.1.0 vs. v.1.0.1
 
 ```{r}
-rts_probability_median_old = rast(
+rts_prob_v1 = rast(
   './sdm/gbm_kfold_10_pred_tuned_median_v.1.0.1_filter.tif'
 )
 
-rts_probability_diff_update = rts_probability_median -
-  rts_probability_median_old
+rts_probability_diff_update = rts_prob -
+  rts_prob_v1
 ```
 
 ```{r}
-ggplot() +
+(rts_prob_diff_map = ggplot() +
   geom_sf(
     data = world,
     aes(geometry = geometry),
@@ -747,9 +794,37 @@ ggplot() +
     inherit.aes = FALSE,
     fill = 'transparent'
   ) +
+  coord_sf(expand = FALSE))
+
+# ggsave(
+#   './figures/rts_probability_diff_filter_v.3.1.0-v.1.0.1.jpg',
+#   rts_prob_diff_map,
+#   height = 5,
+#   width = 6.5
+# )
+
+rts_prob_diff_map +
+  new_scale_fill() +
+  geom_sf(
+    data = new_rts,
+    aes(
+      color = TrainClass,
+      fill = TrainClass
+    ),
+    size = 0.2,
+    linewidth = 0.2
+  ) +
+  scale_color_manual(
+    name = "New RTS\nTraining Data",
+    values = c('#003399', '#660000')
+  ) +
+  scale_fill_manual(
+    name = "New RTS\nTraining Data",
+    values = c('#003399', '#660000')
+  ) +
   coord_sf(expand = FALSE)
 
-# ggsave('./figures/rts_probability_diff_filter_v.3.1.0-v.1.0.1.jpg',
+# ggsave('./figures/rts_probability_diff_filter_v.3.1.0-v.1.0.1_w_new_rts.jpg',
 #        height = 5,
 #        width = 6.5)
 ```
@@ -759,14 +834,14 @@ Using <=50%, >50-75%, >75-90%, >90-95%, >95% following Makopoulou et al. 2024
 
 ```{r}
 rts_quantiles = global(
-  rts_probability_median,
+  rts_prob,
   fun = quantile,
   probs = c(0.50, 0.75, 0.90, 0.95),
   na.rm = TRUE
 ) |>
   as.numeric()
 
-rts_susceptibility_class = rts_probability_median |>
+rts_susceptibility_class = rts_prob |>
   classify(
     rcl = matrix(
       c(
@@ -863,7 +938,7 @@ cutoff = round(mean(c(
   model_eval_summary$cutoff_TSS[1] / 10
 )))
 
-rts_presence_pred = rts_probability_median |>
+rts_presence_pred = rts_prob |>
   classify(
     rcl = matrix(
       c(0, cutoff, 0, cutoff, 1000, 1),
@@ -900,7 +975,7 @@ classify_rts = function(prediction, cutoff) {
 
 rts_presence_list = map(
   cutoffs,
-  ~ classify_rts(rts_probability_median, .x)
+  ~ classify_rts(rts_prob, .x)
 )
 
 # writeRaster(rts_presence_pred,
