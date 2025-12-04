@@ -43,13 +43,13 @@ world = world |>
 # Approximate ROI from Positive RTS occurrences
 
 ```{r}
-arts_pos = arts |>
+roi_arts_pos = arts |>
   filter(TrainClass == 'Positive') |>
   st_buffer(dist = 100000) |>
   st_union()
 
-arts_filter = arts |>
-  st_filter(arts_pos,
+train_arts_filter = arts |>
+  st_filter(roi_arts_pos,
             .predicate = st_within)
 
 ggplot() +
@@ -59,11 +59,11 @@ ggplot() +
           size = 0.2,
           linewidth = 1,
           color = 'red') +
-  geom_sf(data = arts_pos,
+  geom_sf(data = roi_arts_pos,
           size = 0.2,
           linewidth = 1,
           fill = 'transparent') +
-  geom_sf(data = arts_filter,
+  geom_sf(data = train_arts_filter,
           aes(color = TrainClass),
           size = 0.2,
           linewidth = 1,
@@ -72,7 +72,7 @@ ggplot() +
 ```
 
 ```{r}
-arts_filter |>
+train_arts_filter |>
   count(.by = TrainClass)
 ```
 
@@ -83,7 +83,7 @@ Presence Data
 
 ```{r}
 # arts_poly_rast = rasterizeGeom(
-#   vect(arts_filter %>%
+#   vect(train_arts_filter %>%
 #          filter(
 #            TrainClass == 'Positive' &
 #              (st_geometry_type(.) == 'POLYGON' | st_geometry_type(.) == 'MULTIPOLYGON'))
@@ -93,7 +93,7 @@ Presence Data
 # )
 # 
 # arts_point_rast = rasterizeGeom(
-#   vect(arts_filter %>%
+#   vect(train_arts_filter %>%
 #          filter(
 #            TrainClass == 'Positive' &
 #              st_geometry_type(.) == 'POINT')
@@ -167,7 +167,7 @@ Absence Data
 
 ```{r}
 # arts_neg_rast = rasterize(
-#   vect(arts_filter %>%
+#   vect(train_arts_filter %>%
 #          filter(TrainClass == 'Negative') %>%
 #          st_centroid()),
 #   pca
